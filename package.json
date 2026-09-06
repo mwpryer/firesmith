@@ -37,8 +37,7 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "format": "bun run lint:fix && bun run fmt",
-    "preversion": "bun run typecheck && bun run lint && bun run fmt:check && bun run test",
-    "postversion": "git push --follow-tags"
+    "check": "bun run typecheck && bun run lint && bun run fmt:check && bun run test"
   },
   "dependencies": {
     "@standard-schema/spec": "^1.1.0"
@@ -51,6 +50,7 @@
     "oxfmt": "^0.56.0",
     "oxlint": "^1.71.0",
     "tsup": "^8.5.1",
+    "typescript": "^5",
     "zod": "^4.4.3"
   },
   "peerDependencies": {

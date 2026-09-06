@@ -12,9 +12,6 @@
   <a href="https://github.com/mwpryer/firesmith/stargazers"><img src="https://img.shields.io/github/stars/mwpryer/firesmith" alt="GitHub stars"></a>
 </p>
 
-> [!IMPORTANT]
-> This project is under active development. Expect breaking changes before v1.0.
-
 `firesmith` is a thin wrapper over Firestore's SDKs, giving both one schema-typed interface: `firebase-admin` on the server and `firebase` on the web. Define a collection's schema once, in a validator you already use. Reads come back coerced and typed, and queries are typed to its fields. Underneath it's still plain Firestore, so you can reach for the SDK whenever you like.
 
 - **Type-safe end to end.** Reads, writes, queries, listeners, transactions, batches and subcollections all take their types from your schema. Misspell a field or pass the wrong value type and it won't compile, rather than returning nothing at runtime.

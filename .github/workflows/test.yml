@@ -1,14 +1,9 @@
 name: Test
 
 on:
-  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   test:
@@ -16,17 +11,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-      # The test script runs against the Firestore emulator, which needs a JVM
-      - uses: actions/setup-java@v5
+      # The test script runs the Firestore emulator, which needs a JVM
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
       - run: bun install --frozen-lockfile
-      - run: bun run typecheck
-      - run: bun run lint
-      - run: bun run fmt:check
-      - run: bun run test
+      - run: bun run check
       - run: bun run build
