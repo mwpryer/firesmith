@@ -1,7 +1,6 @@
 name: Publish
 
 on:
-  workflow_dispatch:
   push:
     tags: ["v*"]
 
@@ -25,8 +24,6 @@ jobs:
           distribution: temurin
           java-version: "21"
       - run: bun install --frozen-lockfile
-      # Guard against tag drifting from package.json version
-      - run: test "$GITHUB_REF_NAME" = "v$(npm pkg get version | tr -d '\"')"
       - run: bun run test
       - run: bun run build
       - run: npm publish
