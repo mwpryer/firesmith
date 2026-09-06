@@ -94,16 +94,21 @@ Dotted keys are field-path notation in `update` only. In a merge `set`, Firestor
 The builder is immutable, so a base query is reusable. `.get()` (alias `.list()`) returns `Doc[]` and drops non-existent snapshots.
 
 ```ts
+import { documentId } from "firesmith";
+
 const base = db.collection(posts).where("likes", ">=", 10);
 const top = await base.orderBy("likes", "desc").limit(10).get();
 
 // Cursors take field values matching the orderBy chain
-const nextPage = await db
-  .collection(posts)
-  .orderBy("title")
-  .startAfter("Hello")
-  .limit(10)
-  .get();
+const byTitle = db.collection(posts).orderBy("title").orderBy(documentId());
+const firstPage = await byTitle.limit(10).get();
+const last = firstPage.at(-1);
+if (last) {
+  const nextPage = await byTitle
+    .startAfter(last.title, last.id)
+    .limit(10)
+    .get();
+}
 // also startAt / endAt / endBefore
 
 // Aggregations, typed to numeric fields
@@ -112,6 +117,8 @@ const total = await db.collection(posts).sum("likes");
 // number | null, null over empty match
 const mean = await db.collection(posts).average("likes");
 ```
+
+For pagination, order by `documentId()` after the sort field and pass both values from the last document to the cursor. A cursor with only the title skips remaining documents with that title.
 
 Operator typing: `in` / `not-in` take an array, `array-contains` an element, `array-contains-any` an array of elements, comparison operators the field's type. Dotted paths reach into nested maps (`where("meta.views", ">", 100)`) and stop at arrays and timestamps (query those as whole values: `where("tags", "array-contains", "vip")`, never `"tags.0"`).
 

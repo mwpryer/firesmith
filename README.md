@@ -235,6 +235,8 @@ Every write also works on a document handle, like `db.collection(posts).doc("hel
 The builder is immutable and chainable. `.get()` (alias `.list()`) returns `Doc[]`.
 
 ```ts
+import { documentId } from "firesmith";
+
 const popular = await db
   .collection(posts)
   .where("likes", ">=", 10)
@@ -246,7 +248,8 @@ const popular = await db
 const nextPage = await db
   .collection(posts)
   .orderBy("title")
-  .startAfter("Hello world")
+  .orderBy(documentId())
+  .startAfter(last.title, last.id)
   .limit(10)
   .get();
 
@@ -255,6 +258,8 @@ const totalLikes = await db.collection(posts).sum("likes");
 // number | null, null over an empty match
 const meanLikes = await db.collection(posts).average("likes");
 ```
+
+`last` is the previous page's final document. Ordering by ID too prevents skipping posts with matching titles.
 
 `where` is typed against the schema. The field must exist and the value must match its type (`in` / `not-in` take an array, `array-contains` takes an element, and so on). A mismatch is a compile error.
 

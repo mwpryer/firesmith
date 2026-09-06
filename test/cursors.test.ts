@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 
+import { documentId } from "@/index";
 import { allKits } from "./emulator";
-import { seedUsers, users } from "./support";
+import { posts, seedUsers, users } from "./support";
 
 for (const kit of allKits) {
   describe(kit.name, () => {
@@ -29,6 +30,37 @@ for (const kit of allKits) {
         expect(first.map((u) => u.name)).toEqual(["A"]);
         const next = await byAge.startAfter(first[0]!.age).limit(1).get();
         expect(next.map((u) => u.name)).toEqual(["B"]);
+      });
+
+      it("paginates through equal sort values without skipping documents", async () => {
+        const col = kit.db.collection(posts);
+        await col.set("a", {
+          title: "A",
+          likes: 10,
+        });
+        await col.set("b", {
+          title: "B",
+          likes: 10,
+        });
+        await col.set("c", {
+          title: "C",
+          likes: 20,
+        });
+
+        const byLikes = col.orderBy("likes").orderBy(documentId()).limit(1);
+        const first = await byLikes.get();
+        expect(first.map((post) => post.id)).toEqual(["a"]);
+        const second = await byLikes
+          .startAfter(first[0]!.likes, first[0]!.id)
+          .get();
+        expect(second.map((post) => post.id)).toEqual(["b"]);
+        const third = await byLikes
+          .startAfter(second[0]!.likes, second[0]!.id)
+          .get();
+        expect(third.map((post) => post.id)).toEqual(["c"]);
+        expect(
+          await byLikes.startAfter(third[0]!.likes, third[0]!.id).get(),
+        ).toEqual([]);
       });
 
       it("bounds by a Date cursor", async () => {
