@@ -111,7 +111,10 @@ export function toNativeData(
   data: unknown,
   native: NativeAdapter,
 ): DocumentData {
-  return toNative(data, native) as DocumentData;
+  // Id comes from the path, never stored
+  const { id: _, ...fields } = toNative(data, native) as DocumentData;
+
+  return fields;
 }
 
 // Reads coerce stored values to neutral types, then merge the doc id in flat
@@ -133,9 +136,7 @@ export function makeConverter<S extends StandardSchemaV1>(
 ): RawConverter {
   return {
     toNative(data: DocumentData): DocumentData {
-      // Id comes from the path, never stored
-      const { id: _, ...fields } = data;
-      return toNativeData(fields, native);
+      return toNativeData(data, native);
     },
     fromNative(id: string, data: DocumentData): unknown {
       const coerced = toNeutralData(data, def.raw);

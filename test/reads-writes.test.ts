@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "bun:test";
+import { getDocs, query, where } from "firebase/firestore";
 import { z } from "zod";
 
+import { collectionRef as adminCollectionRef } from "@/admin";
 import { collection, isTimestampLike } from "@/index";
+import { collectionRef as webCollectionRef } from "@/web";
 import { allKits } from "./emulator";
 import { sampleUser, users } from "./support";
 
@@ -16,6 +19,71 @@ for (const kit of allKits) {
         const john = await col.get("john");
         expect(john!.id).toBe("john");
         expect(john!.name).toBe("John Doe");
+      });
+
+      it("strips the returned id from writes but preserves nested ids", async () => {
+        const records = collection(
+          "records",
+          z.object({
+            name: z.string(),
+            nested: z.object({ id: z.string() }),
+            items: z.array(z.object({ id: z.string() })),
+          }),
+        );
+        const col = kit.db.collection(records);
+        const fields = {
+          name: "Original",
+          nested: { id: "nested-id" },
+          items: [{ id: "item-id" }],
+        };
+        await col.set("one", fields);
+        await col.set("tx-update", fields);
+        await col.set("batch-update", fields);
+        const source = (await col.get("one"))!;
+
+        await col.set("copy", source);
+        await col.set("merge", source, { merge: true });
+        await col.update("one", source);
+        await col.add(source);
+
+        await kit.db.runTransaction(async (tx) => {
+          const txCol = tx.collection(records);
+          const doc = (await txCol.get("one"))!;
+          txCol.set("tx-copy", doc);
+          txCol.set("tx-merge", doc, { merge: true });
+          txCol.update("tx-update", doc);
+        });
+
+        const batch = kit.db.batch();
+        const batchCol = batch.collection(records);
+        batchCol.set("batch-copy", source);
+        batchCol.set("batch-merge", source, { merge: true });
+        batchCol.update("batch-update", source);
+        await batch.commit();
+
+        const matches =
+          kit.name === "admin"
+            ? await adminCollectionRef(col).where("id", "==", "one").get()
+            : await getDocs(
+                query(webCollectionRef(col), where("id", "==", "one")),
+              );
+        expect(matches.docs.map((doc) => doc.id)).toEqual([]);
+
+        const copies = await col.query().get();
+        expect(copies).toHaveLength(10);
+        for (const copy of copies) {
+          expect(copy).toMatchObject({
+            name: "Original",
+            nested: { id: "nested-id" },
+            items: [{ id: "item-id" }],
+          });
+        }
+        expect(source).toEqual({
+          id: "one",
+          name: "Original",
+          nested: { id: "nested-id" },
+          items: [{ id: "item-id" }],
+        });
       });
 
       it("coerces dates at any depth, Date on read, timestamp in storage", async () => {
