@@ -9,8 +9,14 @@ import {
   increment,
   serverTimestamp,
 } from "@/index";
-import type { Doc, DocumentReference, GeoPoint, VectorValue } from "@/index";
-import { places, sampleUser, users } from "./support";
+import type {
+  Doc,
+  DocumentReference,
+  GeoPoint,
+  MergeOptions,
+  VectorValue,
+} from "@/index";
+import { places, samplePlace, sampleUser, users } from "./support";
 
 // Compile-time only, never executed, typecheck enforces every ts-expect-error
 
@@ -83,6 +89,10 @@ function updateTypes(): void {
   void p.update("p1", { "stats.lastVisit": serverTimestamp() });
   void p.update("p1", { "address.geo": { lat: 1, lng: 2 } });
   void p.update("p1", { "address.note": deleteField() });
+  // @ts-expect-error whole-map updates require every required child
+  void p.update("p1", { address: { city: "Leeds" } });
+  // @ts-expect-error dotted whole-map updates also replace their children
+  void p.update("p1", { "address.geo": { lat: 1 } });
   // A whole-map value carries nested sentinels, transforms reach inside maps
   void p.update("p1", {
     stats: { visits: increment(1), lastVisit: serverTimestamp() },
@@ -118,8 +128,56 @@ function writeTypes(): void {
     .collection(logs)
     // @ts-expect-error sentinels are not valid inside array elements
     .set("l1", { entries: [{ at: serverTimestamp() }] });
-  // Dotted keys are field paths only in update, a merge set would name them literally
   const p = db.collection(places);
+  void p.set("p1", { address: { city: "Leeds" } }, { merge: true });
+  void p.set(
+    "p1",
+    { address: { geo: { lat: increment(1) } } },
+    { merge: true },
+  );
+  void p.set("p1", { address: { note: deleteField() } }, { merge: true });
+  const patch = {
+    address: {
+      city: "Leeds",
+      note: deleteField(),
+    },
+  };
+  const fields = {
+    mergeFields: ["address.city", "address.note"],
+  } satisfies MergeOptions<z.output<typeof places.schema>>;
+  void p.set("p1", patch, fields);
+  void p.doc("p1").set(patch, { merge: true });
+  void p.doc("p1").set(patch, fields);
+  const batch = db.batch().collection(places);
+  batch.set("p1", patch, { merge: true });
+  batch.set("p1", patch, fields);
+  batch.doc("p1").set(patch, { merge: true });
+  batch.doc("p1").set(patch, fields);
+  void db.runTransaction(async (tx) => {
+    const col = tx.collection(places);
+    col.set("p1", patch, { merge: true });
+    col.set("p1", patch, fields);
+    col.doc("p1").set(patch, { merge: true });
+    col.doc("p1").set(patch, fields);
+  });
+  // @ts-expect-error full writes still require complete nested maps
+  void p.set("p1", { ...samplePlace(), address: { city: "Leeds" } });
+  // @ts-expect-error merge writes cannot delete required nested fields
+  void p.set("p1", { address: { city: deleteField() } }, { merge: true });
+  // @ts-expect-error nested values must match their field type
+  void p.set("p1", { address: { city: 1 } }, { merge: true });
+  // @ts-expect-error nested sentinels must match their field type
+  void p.set("p1", { address: { city: increment(1) } }, { merge: true });
+  // @ts-expect-error optional nested fields exclude explicit undefined
+  void p.set("p1", { address: { note: undefined } }, { merge: true });
+  // @ts-expect-error array elements remain complete in merge writes
+  void db.collection(logs).set("l1", { entries: [{}] }, { merge: true });
+  void db
+    .collection(logs)
+    // @ts-expect-error merge writes cannot put sentinels inside array elements
+    .set("l1", { entries: [{ at: serverTimestamp() }] }, { merge: true });
+  // @ts-expect-error dates remain atomic in merge writes
+  void p.set("p1", { stats: { lastVisit: {} } }, { merge: true });
   // @ts-expect-error dotted keys are not part of the merge set surface
   void p.set("p1", { "address.city": "London" }, { merge: true });
   // A merge set whole-map value carries nested sentinels

@@ -66,15 +66,15 @@ Every write also exists on a document handle: `db.collection(posts).doc("hello")
 
 Import from `firesmith`, never an SDK `FieldValue`. Each is constrained at compile time to the field types it fits:
 
-| Sentinel            | Valid on                          |
-| ------------------- | --------------------------------- |
-| `increment(n)`      | `number` fields                   |
-| `serverTimestamp()` | `Date` or `Timestamp` fields      |
-| `arrayUnion(...v)`  | matching array fields             |
-| `arrayRemove(...v)` | matching array fields             |
-| `deleteField()`     | optional fields only, update only |
+| Sentinel            | Valid on                               |
+| ------------------- | -------------------------------------- |
+| `increment(n)`      | `number` fields                        |
+| `serverTimestamp()` | `Date` or `Timestamp` fields           |
+| `arrayUnion(...v)`  | matching array fields                  |
+| `arrayRemove(...v)` | matching array fields                  |
+| `deleteField()`     | optional fields, update or merge `set` |
 
-`set` / `add` accept sentinels per field but not `deleteField` (a full write cannot delete a field). Firestore rejects a sentinel inside an array; `firesmith` forwards that as the SDK's own error.
+Full `set` / `add` accept sentinels per field but not `deleteField` because a full write cannot delete a field. Firestore rejects a sentinel inside an array. `firesmith` forwards that as the SDK's own error.
 
 ## Nested updates
 
@@ -88,6 +88,14 @@ await db.collection(posts).update("hello", { meta: { views: 0 } });
 ```
 
 Dotted keys are field-path notation in `update` only. In a merge `set`, Firestore stores `"meta.views"` as a literal field name, so nest an object instead: `set(id, { meta: { views: 0 } }, { merge: true })`.
+
+Merge `set` accepts recursively partial maps with `merge: true` or `mergeFields`, on normal, transaction and batch handles. Nested fields accept type-compatible sentinels, including `deleteField()` on optional fields. Array elements and atomic values such as dates stay complete. Whole-map `update` values require every required child because they replace the map.
+
+```ts
+await db
+  .collection(posts)
+  .set("hello", { meta: { pinned: deleteField() } }, { merge: true });
+```
 
 ## Queries
 

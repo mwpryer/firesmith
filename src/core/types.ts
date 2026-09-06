@@ -68,8 +68,15 @@ export type UpdateValue<V> =
   | SentinelFor<NonNullable<V>>
   | (undefined extends V ? DeleteFieldSentinel : never);
 
-// Partial write shape for merge set and immediate level of update
-export type UpdateData<T> = { [K in keyof T]?: UpdateValue<T[K]> };
+// Merge maps recursively, array elements and atomic values stay complete
+export type UpdateData<T> = T extends FieldPathLeaf
+  ? WithFieldValue<T>
+  : {
+      [K in keyof T]?:
+        | Exclude<UpdateData<T[K]>, undefined>
+        | SentinelFor<NonNullable<T[K]>>
+        | (undefined extends T[K] ? DeleteFieldSentinel : never);
+    };
 
 // Merge union of objects into one intersection
 type UnionToIntersection<U> = (
@@ -95,7 +102,9 @@ type NestedUpdatePaths<T> = UnionToIntersection<
 >;
 
 // update() write shape, immediate fields plus dotted-path keys, paths only here
-export type UpdatePaths<T> = UpdateData<T> & NestedUpdatePaths<T>;
+export type UpdatePaths<T> = {
+  [K in keyof T]?: UpdateValue<T[K]>;
+} & NestedUpdatePaths<T>;
 
 // Merge set options, two exclusive modes mirroring Firestore SetOptions
 export type MergeOptions<T> =

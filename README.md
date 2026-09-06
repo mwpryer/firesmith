@@ -391,6 +391,8 @@ await db.collection(orders).update("o1", { "totals.items": "many" });
 
 Dotted keys are a field-path notation in `update` only. In a merge `set`, Firestore writes them as a field named literally `"totals.items"`, so they stay off that surface; nest with an object instead (`set({ totals: { items } }, { merge: true })`).
 
+Merge `set` accepts recursively partial maps with either `merge: true` or `mergeFields`, including in transactions and batches. Nested fields accept type-compatible sentinels, including `deleteField()` on optional fields. Array elements and atomic values such as dates must stay complete. Whole-map `update` values still require every required child because they replace the map.
+
 ## Timestamps
 
 Schemas speak `Date`. The boundary coerces between `Date` and `Timestamp` deeply (including nested maps and arrays) by runtime type. On read, every Firestore `Timestamp` becomes a `Date`. On write, a `Date` becomes a `Timestamp`.

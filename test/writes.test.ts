@@ -76,6 +76,46 @@ for (const kit of allKits) {
         expect((await col.get("x"))!.b).toBeUndefined();
       });
 
+      it("merge set preserves required siblings and deletes optional nested fields", async () => {
+        const records = collection(
+          "records",
+          z.object({
+            meta: z.object({
+              a: z.number(),
+              b: z.number(),
+              c: z.number().optional(),
+            }),
+          }),
+        );
+        const col = kit.db.collection(records);
+        await col.set("r1", {
+          meta: {
+            a: 1,
+            b: 2,
+            c: 3,
+          },
+        });
+
+        await col.set(
+          "r1",
+          {
+            meta: {
+              a: increment(5),
+              c: deleteField(),
+            },
+          },
+          { merge: true },
+        );
+
+        expect(await col.get("r1")).toEqual({
+          id: "r1",
+          meta: {
+            a: 6,
+            b: 2,
+          },
+        });
+      });
+
       it("update replaces a nested map wholesale, merge set merges into it", async () => {
         const records = collection(
           "records",
@@ -133,21 +173,51 @@ for (const kit of allKits) {
         expect((await col.get("p1"))!.address.note).toBeUndefined();
       });
 
-      it("mergeFields names a nested path, writing only it", async () => {
+      it("mergeFields accepts partial maps and nested deletions, writing only listed paths", async () => {
         const col = kit.db.collection(places);
-        await col.set("p1", samplePlace());
+        await col.set("p1", {
+          name: "Acme",
+          address: {
+            city: "London",
+            zip: "111",
+            geo: {
+              lat: 1,
+              lng: 2,
+            },
+            note: "Remove me",
+          },
+          stats: {
+            visits: 0,
+            lastVisit: new Date("2020-01-01T00:00:00.000Z"),
+          },
+        });
         await col.set(
           "p1",
           {
             name: "New",
-            address: { city: "Leeds", zip: "999", geo: { lat: 9, lng: 9 } },
+            address: {
+              city: "Leeds",
+              note: deleteField(),
+            },
           },
-          { mergeFields: ["address.city"] },
+          { mergeFields: ["address.city", "address.note"] },
         );
-        const p = await col.get("p1");
-        expect(p!.address.city).toBe("Leeds");
-        expect(p!.address.zip).toBe("111");
-        expect(p!.name).toBe("Acme");
+        expect(await col.get("p1")).toEqual({
+          id: "p1",
+          name: "Acme",
+          address: {
+            city: "Leeds",
+            zip: "111",
+            geo: {
+              lat: 1,
+              lng: 2,
+            },
+          },
+          stats: {
+            visits: 0,
+            lastVisit: new Date("2020-01-01T00:00:00.000Z"),
+          },
+        });
       });
     });
   });
