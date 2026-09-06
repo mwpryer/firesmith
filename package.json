@@ -44,14 +44,14 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "firebase": "^12.15.0",
-    "firebase-admin": "^14.0.0",
-    "firebase-tools": "^15.16.0",
-    "oxfmt": "^0.56.0",
-    "oxlint": "^1.71.0",
+    "firebase": "^12.18.0",
+    "firebase-admin": "^14.3.0",
+    "firebase-tools": "^15.29.0",
+    "oxfmt": "^0.66.0",
+    "oxlint": "^1.81.0",
     "tsup": "^8.5.1",
     "typescript": "^5",
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   },
   "peerDependencies": {
     "firebase": "^11.0.0 || ^12.0.0",
