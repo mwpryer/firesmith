@@ -200,6 +200,30 @@ function writeTypes(): void {
   void b.add(sampleUser());
   // @ts-expect-error id comes from the path, not a schema field
   void collection("bad", z.object({ id: z.string() }));
+  // @ts-expect-error meta is document metadata, not a schema field
+  void collection("bad", z.object({ meta: z.object({ path: z.string() }) }));
+  // @ts-expect-error optional meta still conflicts with document metadata
+  void collection("bad", z.object({ meta: z.string().optional() }));
+  const variants = z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("plain"),
+      name: z.string(),
+    }),
+    z.object({
+      kind: z.literal("located"),
+      meta: z.string(),
+    }),
+  ]);
+  // @ts-expect-error meta is reserved even when only one union member declares it
+  void collection("bad", variants);
+  // path is an ordinary data field
+  void collection("ok", z.object({ path: z.string() }));
+  // @ts-expect-error id is excluded from writes
+  void u.set("john", { ...sampleUser(), id: "john" });
+  // @ts-expect-error meta is excluded from writes
+  void u.set("john", { ...sampleUser(), meta: { path: "users/john" } });
+  // @ts-expect-error meta is excluded from updates
+  void u.update("john", { meta: { path: "users/jane" } });
 }
 
 function schemaTypes(): void {
@@ -215,9 +239,11 @@ function schemaTypes(): void {
   function readAsset(doc: Doc<typeof assets.schema>): void {
     const lat: number = doc.location.latitude;
     const id: string = doc.owner.id;
+    const path: string = doc.meta.path;
     const vec: number[] = doc.embedding.toArray();
     void lat;
     void id;
+    void path;
     void vec;
   }
   void readAsset;

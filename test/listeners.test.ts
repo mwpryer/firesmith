@@ -9,30 +9,52 @@ for (const kit of allKits) {
       beforeEach(() => kit.clear());
 
       it("emits the current document and subsequent changes", async () => {
-        const seen: (string | null)[] = [];
+        const seen: Array<{ name: string; path: string } | null> = [];
         const unsub = kit.db
           .collection(users)
           .doc("john")
-          .onSnapshot((doc) => seen.push(doc ? doc.name : null));
+          .onSnapshot((doc) =>
+            seen.push(
+              doc
+                ? {
+                    name: doc.name,
+                    path: doc.meta.path,
+                  }
+                : null,
+            ),
+          );
         await waitUntil(() => seen.length >= 1);
         await kit.db.collection(users).set("john", sampleUser());
-        await waitUntil(() => seen.at(-1) === "John Doe");
+        await waitUntil(() => seen.at(-1)?.name === "John Doe");
         unsub();
         expect(seen[0]).toBeNull();
-        expect(seen.at(-1)).toBe("John Doe");
+        expect(seen.at(-1)).toEqual({
+          name: "John Doe",
+          path: "users/john",
+        });
       });
 
       it("emits live collection results", async () => {
-        const pages: string[][] = [];
-        const unsub = kit.db
-          .collection(users)
-          .onSnapshot((docs) => pages.push(docs.map((u) => u.name)));
+        const pages: Array<Array<{ name: string; path: string }>> = [];
+        const unsub = kit.db.collection(users).onSnapshot((docs) =>
+          pages.push(
+            docs.map((u) => ({
+              name: u.name,
+              path: u.meta.path,
+            })),
+          ),
+        );
         await waitUntil(() => pages.length >= 1);
         await kit.db.collection(users).set("john", sampleUser());
-        await waitUntil(() => (pages.at(-1) ?? []).includes("John Doe"));
+        await waitUntil(() => pages.at(-1)?.[0]?.name === "John Doe");
         unsub();
         expect(pages[0]).toEqual([]);
-        expect(pages.at(-1)).toEqual(["John Doe"]);
+        expect(pages.at(-1)).toEqual([
+          {
+            name: "John Doe",
+            path: "users/john",
+          },
+        ]);
       });
 
       it("does not re-deliver a document when an unrelated document changes", async () => {

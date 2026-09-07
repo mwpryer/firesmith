@@ -22,7 +22,15 @@ export interface CollectionDef<S extends StandardSchemaV1 = StandardSchemaV1> {
 export type InferOutput<S extends StandardSchemaV1> =
   StandardSchemaV1.InferOutput<S>;
 
-export type Doc<S extends StandardSchemaV1> = InferOutput<S> & { id: string };
+// Read-only document metadata from the snapshot, never stored
+export interface DocMeta {
+  readonly path: string;
+}
+
+export type Doc<S extends StandardSchemaV1> = InferOutput<S> & {
+  id: string;
+  meta: DocMeta;
+};
 
 type Primitive =
   | string

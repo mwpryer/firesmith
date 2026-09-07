@@ -80,7 +80,7 @@ for (const kit of allKits) {
         const records = collection(
           "records",
           z.object({
-            meta: z.object({
+            stats: z.object({
               a: z.number(),
               b: z.number(),
               c: z.number().optional(),
@@ -89,7 +89,7 @@ for (const kit of allKits) {
         );
         const col = kit.db.collection(records);
         await col.set("r1", {
-          meta: {
+          stats: {
             a: 1,
             b: 2,
             c: 3,
@@ -99,7 +99,7 @@ for (const kit of allKits) {
         await col.set(
           "r1",
           {
-            meta: {
+            stats: {
               a: increment(5),
               c: deleteField(),
             },
@@ -109,7 +109,8 @@ for (const kit of allKits) {
 
         expect(await col.get("r1")).toEqual({
           id: "r1",
-          meta: {
+          meta: { path: "records/r1" },
+          stats: {
             a: 6,
             b: 2,
           },
@@ -120,22 +121,22 @@ for (const kit of allKits) {
         const records = collection(
           "records",
           z.object({
-            meta: z.object({ a: z.number(), b: z.number().optional() }),
+            stats: z.object({ a: z.number(), b: z.number().optional() }),
           }),
         );
         const col = kit.db.collection(records);
         // Update drops b, unlike a merge set
-        await col.set("r1", { meta: { a: 1, b: 2 } });
-        await col.update("r1", { meta: { a: 9 } });
-        expect((await col.get("r1"))!.meta).toEqual({ a: 9 });
+        await col.set("r1", { stats: { a: 1, b: 2 } });
+        await col.update("r1", { stats: { a: 9 } });
+        expect((await col.get("r1"))!.stats).toEqual({ a: 9 });
 
         // A merged whole-map value nests sentinels, increment sees the stored value
-        await col.set("r1", { meta: { a: increment(5) } }, { merge: true });
-        expect((await col.get("r1"))!.meta).toEqual({ a: 14 });
+        await col.set("r1", { stats: { a: increment(5) } }, { merge: true });
+        expect((await col.get("r1"))!.stats).toEqual({ a: 14 });
 
         // Update replaces the map, so the nested increment starts from nothing
-        await col.update("r1", { meta: { a: increment(1) } });
-        expect((await col.get("r1"))!.meta).toEqual({ a: 1 });
+        await col.update("r1", { stats: { a: increment(1) } });
+        expect((await col.get("r1"))!.stats).toEqual({ a: 1 });
       });
     });
 
@@ -204,6 +205,7 @@ for (const kit of allKits) {
         );
         expect(await col.get("p1")).toEqual({
           id: "p1",
+          meta: { path: "places/p1" },
           name: "Acme",
           address: {
             city: "Leeds",

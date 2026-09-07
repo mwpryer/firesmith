@@ -134,7 +134,13 @@ export class AdminDriver implements Driver {
 
   async getDoc(path: DocLocation): Promise<RawSnapshot> {
     const snapshot = await this.#doc(path.segments).get();
-    return { id: snapshot.id, exists: snapshot.exists, data: snapshot.data() };
+
+    return {
+      id: snapshot.id,
+      path: snapshot.ref.path,
+      exists: snapshot.exists,
+      data: snapshot.data(),
+    };
   }
 
   async setDoc(
@@ -167,6 +173,7 @@ export class AdminDriver implements Driver {
     const snapshot = await this.#query(source, constraints).get();
     return snapshot.docs.map((doc) => ({
       id: doc.id,
+      path: doc.ref.path,
       exists: true,
       data: doc.data(),
     }));
@@ -207,6 +214,7 @@ export class AdminDriver implements Driver {
       (snapshot) =>
         observer.next({
           id: snapshot.id,
+          path: snapshot.ref.path,
           exists: snapshot.exists,
           data: snapshot.data(),
         }),
@@ -224,6 +232,7 @@ export class AdminDriver implements Driver {
         observer.next(
           snapshot.docs.map((doc) => ({
             id: doc.id,
+            path: doc.ref.path,
             exists: true,
             data: doc.data(),
           })),
@@ -242,6 +251,7 @@ export class AdminDriver implements Driver {
           const snapshot = await transaction.get(this.#doc(path.segments));
           return {
             id: snapshot.id,
+            path: snapshot.ref.path,
             exists: snapshot.exists,
             data: snapshot.data(),
           };
@@ -322,6 +332,10 @@ function adaptConverter(
   return {
     toFirestore: (model) => converter.toNative(model),
     fromFirestore: (snapshot: QueryDocumentSnapshot) =>
-      converter.fromNative(snapshot.id, snapshot.data()) as DocumentData,
+      converter.fromNative(
+        snapshot.id,
+        snapshot.ref.path,
+        snapshot.data(),
+      ) as DocumentData,
   };
 }

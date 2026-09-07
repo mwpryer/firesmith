@@ -13,28 +13,27 @@ for (const kit of allKits) {
     describe("reads and writes", () => {
       beforeEach(() => kit.clear());
 
-      it("round-trips a document with its id merged in", async () => {
+      it("round-trips a document with its id and meta merged in", async () => {
         const col = kit.db.collection(users);
         await col.set("john", sampleUser());
         const john = await col.get("john");
         expect(john!.id).toBe("john");
+        expect(john!.meta).toEqual({ path: "users/john" });
         expect(john!.name).toBe("John Doe");
       });
 
-      it("strips the returned id from writes but preserves nested ids", async () => {
+      it("strips id and meta from writes but stores a path data field", async () => {
         const records = collection(
           "records",
           z.object({
             name: z.string(),
-            nested: z.object({ id: z.string() }),
-            items: z.array(z.object({ id: z.string() })),
+            path: z.string(),
           }),
         );
         const col = kit.db.collection(records);
         const fields = {
           name: "Original",
-          nested: { id: "nested-id" },
-          items: [{ id: "item-id" }],
+          path: "data/path",
         };
         await col.set("one", fields);
         await col.set("tx-update", fields);
@@ -69,43 +68,55 @@ for (const kit of allKits) {
               );
         expect(matches.docs.map((doc) => doc.id)).toEqual([]);
 
+        const metaMatches =
+          kit.name === "admin"
+            ? await adminCollectionRef(col)
+                .where("meta.path", "==", "records/one")
+                .get()
+            : await getDocs(
+                query(
+                  webCollectionRef(col),
+                  where("meta.path", "==", "records/one"),
+                ),
+              );
+        expect(metaMatches.docs.map((doc) => doc.id)).toEqual([]);
+
         const copies = await col.query().get();
         expect(copies).toHaveLength(10);
         for (const copy of copies) {
           expect(copy).toMatchObject({
             name: "Original",
-            nested: { id: "nested-id" },
-            items: [{ id: "item-id" }],
+            path: "data/path",
           });
         }
         expect(source).toEqual({
           id: "one",
+          meta: { path: "records/one" },
           name: "Original",
-          nested: { id: "nested-id" },
-          items: [{ id: "item-id" }],
+          path: "data/path",
         });
       });
 
       it("coerces dates at any depth, Date on read, timestamp in storage", async () => {
         const events = collection(
           "events",
-          z.object({ at: z.date(), meta: z.object({ start: z.date() }) }),
+          z.object({ at: z.date(), stats: z.object({ start: z.date() }) }),
         );
         const col = kit.db.collection(events);
         const date = new Date("2020-01-01T00:00:00.000Z");
-        await col.set("e1", { at: date, meta: { start: date } });
+        await col.set("e1", { at: date, stats: { start: date } });
 
         const e = await col.get("e1");
         expect(e!.at).toBeInstanceOf(Date);
         expect(e!.at.getTime()).toBe(date.getTime());
-        expect(e!.meta.start).toBeInstanceOf(Date);
+        expect(e!.stats.start).toBeInstanceOf(Date);
 
         const stored = (await kit.rawGet("events/e1"))! as {
           at: unknown;
-          meta: { start: unknown };
+          stats: { start: unknown };
         };
         expect(isTimestampLike(stored.at)).toBe(true);
-        expect(isTimestampLike(stored.meta.start)).toBe(true);
+        expect(isTimestampLike(stored.stats.start)).toBe(true);
       });
 
       it("reports existence and returns null for a missing document", async () => {

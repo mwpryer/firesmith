@@ -15,7 +15,7 @@ for (const kit of allKits) {
         await johnPosts.set("p1", { title: "Draft", likes: 0 });
 
         // All reads precede all writes
-        await kit.db.runTransaction(async (tx) => {
+        const paths = await kit.db.runTransaction(async (tx) => {
           const john = await tx.collection(users).get("john");
           const post = await tx
             .collection(users)
@@ -31,8 +31,11 @@ for (const kit of allKits) {
             .collection(posts)
             .doc("p1")
             .set({ ...post!, likes: post!.likes + 1 });
+
+          return [john!.meta.path, post!.meta.path];
         });
 
+        expect(paths).toEqual(["users/john", "users/john/posts/p1"]);
         expect((await col.get("john"))!.age).toBe(37);
         expect((await johnPosts.get("p1"))!.likes).toBe(1);
       });

@@ -50,7 +50,7 @@ const top = await getDocs(
 
 // firesmith
 const post = await db.collection(posts).get("hello-world");
-// { id: string; title: string; likes: number; createdAt: Date } | null
+// { id: string; title: string; likes: number; createdAt: Date; meta: { path: string } } | null
 
 await db.collection(posts).set("hello-world", {
   title: "Hello world",
@@ -121,7 +121,7 @@ await db.collection(posts).set("hello-world", {
   createdAt: new Date(),
 });
 
-// { id, title, likes, createdAt } | null, createdAt is a Date
+// { id, title, likes, createdAt, meta } | null, createdAt is a Date
 const post = await db.collection(posts).get("hello-world");
 
 // atomic field update via a neutral sentinel
@@ -183,13 +183,15 @@ const db = createDatabase(getFirestore(app));
 ## Read
 
 ```ts
-// Doc | null, where Doc = T & { id }
+// Doc | null, where Doc = T & { id; meta: { path } }
 const post = await db.collection(posts).get("hello-world");
 // the same, from a document handle
 const same = await db.collection(posts).doc("hello-world").get();
 const there = await db.collection(posts).doc("hello-world").exists();
 const total = await db.collection(posts).count();
 ```
+
+`id` is the document id and `meta.path` its full path, for example `users/john/posts/p1`. Neither is a schema field, and both are stripped from writes.
 
 ## Write
 
@@ -256,7 +258,7 @@ const totalLikes = await db.collection(posts).sum("likes");
 const meanLikes = await db.collection(posts).average("likes");
 ```
 
-`last` is the previous page's final document. Ordering by ID too prevents skipping posts with matching titles.
+`last` is the previous page's final document. Ordering by ID too prevents skipping posts with matching titles. In a collection-group query the `documentId()` cursor value is `last.meta.path`.
 
 `where` is typed against the schema. The field must exist and the value must match its type (`in` / `not-in` take an array, `array-contains` takes an element, and so on). A mismatch is a compile error.
 
@@ -361,7 +363,7 @@ It is the right tool for blind atomic writes. A transaction would cover these to
 
 `firesmith` types and coerces. It does not validate.
 
-Reads are coerced and typed. A read coerces stored Firestore values to neutral types (every `Timestamp` becomes a `Date`), then merges the document id in flat as `(T & { id }) | null`. `firesmith` never runs your schema, so a document that has drifted from it still comes back, typed as valid. Validate on read yourself where that matters.
+Reads are coerced and typed. A read coerces stored Firestore values to neutral types (every `Timestamp` becomes a `Date`), then merges the document id and path in as `(T & { id; meta: { path } }) | null`. `firesmith` never runs your schema, so a document that has drifted from it still comes back, typed as valid. Validate on read yourself where that matters.
 
 Writes are coerced. `set`, `add`, `update` and merge `set` coerce `Date` to `Timestamp` and translate sentinels, then write. The typed surface constrains every field at compile time, but nothing is checked at runtime.
 

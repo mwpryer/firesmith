@@ -42,7 +42,7 @@ const db = createDatabase(getFirestore());
 await db
   .collection(posts)
   .set("hello", { title: "Hello", likes: 0, createdAt: new Date() });
-// Doc | null, Doc = T & { id }
+// Doc | null, Doc = T & { id; meta: { path } }
 const post = await db.collection(posts).get("hello");
 await db.collection(posts).update("hello", { likes: increment(1) });
 const popular = await db
@@ -53,15 +53,15 @@ const popular = await db
   .get();
 ```
 
-The schema is any [Standard Schema](https://standardschema.dev) validator (Zod, Valibot, ArkType). It describes one document's fields, excluding the id.
+The schema is any [Standard Schema](https://standardschema.dev) validator (Zod, Valibot, ArkType). It describes one document's fields, excluding `id` and `meta`.
 
 ## Core rules
 
-1. **Ids are path-only.** Never declare an `id` field in a schema (compile error). Reads merge `id` in flat; writes exclude it. `add(data)` returns the generated id.
+1. **`id` and `meta` come from the path.** Never declare either in a schema (compile error). Reads merge in `id` and `meta.path`, the full document path; writes strip both. `add(data)` returns the generated id.
 2. **Missing reads are `null`.** `get()` returns `Doc<S> | null`; there is no `.exists` snapshot to check (use `.doc(id).exists()` for a boolean).
 3. **Values coerce at the boundary.** Write a `Date`, read a `Date` (stored as `Timestamp`); write a `Uint8Array`, read a `Uint8Array` (stored as SDK bytes). Deep through maps and arrays.
 4. **Sentinels are `firesmith`'s own.** Import `serverTimestamp`, `increment`, `arrayUnion`, `arrayRemove`, `deleteField` from `firesmith`, never `FieldValue` from an SDK. Each is type-constrained to the fields it fits (`increment` on numbers, `deleteField` on optional fields only).
-5. **Queries are typed to the schema.** `where` / `orderBy` take typed dotted paths into nested maps (`"customer.address.city"`); a misspelt field or wrong value type is a compile error. Target the id with `documentId()` from `firesmith`.
+5. **Queries are typed to the schema.** `where` / `orderBy` take typed dotted paths into nested maps (`"customer.address.city"`); a misspelt field or wrong value type is a compile error. Target the id with `documentId()` from `firesmith`; in a collection-group query its cursor value is `doc.meta.path`.
 6. **Dotted-path keys work in `update` only.** `update("o1", { "totals.items": increment(1) })` touches one nested field. Merge `set` accepts recursively partial nested objects with `merge: true` or `mergeFields`, including nested optional-field deletions. Whole-map `update` values must be complete replacements.
 7. **Transaction and batch writes take no `await`.** Reads in a transaction are async; writes return `void` and buffer until commit. Batches are write-only (no `get`, no `add`) and apply atomically on `.commit()`.
 8. **No runtime validation.** A document drifted from its schema comes back typed as valid. Where drift matters, run the schema on the result yourself.

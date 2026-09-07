@@ -8,8 +8,18 @@ export interface CollectionOptions {
 
 export function collection<S extends StandardSchemaV1>(
   name: string,
-  // Id comes from the path, reject a schema declaring its own
-  schema: S & ("id" extends keyof InferOutput<S> ? never : unknown),
+  // Check every union member, keyof alone only includes shared fields
+  schema: S &
+    (Extract<
+      "id" | "meta",
+      InferOutput<S> extends infer T
+        ? T extends unknown
+          ? keyof T
+          : never
+        : never
+    > extends never
+      ? unknown
+      : never),
   options?: CollectionOptions,
 ): CollectionDef<S> {
   if (options?.raw && options.raw.length > 0) {

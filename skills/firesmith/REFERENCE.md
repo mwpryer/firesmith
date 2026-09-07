@@ -13,7 +13,7 @@ const posts = collection(
     likes: z.number(),
     tags: z.array(z.string()),
     createdAt: z.date(),
-    meta: z
+    stats: z
       .object({ views: z.number(), pinned: z.boolean().optional() })
       .optional(),
   }),
@@ -31,7 +31,7 @@ const same = await db.collection(posts).doc("hello").get();
 const there = await db.collection(posts).doc("hello").exists();
 ```
 
-`Doc<S> = InferOutput<S> & { id: string }`. The id is merged flat on read and never stored.
+`Doc<S> = InferOutput<S> & { id: string; meta: { path: string } }`. `id` is the document id and `meta.path` its full path, for example `users/john/posts/p1`. Both are merged in on read and never stored.
 
 ## Writes
 
@@ -82,19 +82,19 @@ Full `set` / `add` accept sentinels per field but not `deleteField` because a fu
 
 ```ts
 // siblings kept
-await db.collection(posts).update("hello", { "meta.views": increment(1) });
+await db.collection(posts).update("hello", { "stats.views": increment(1) });
 // whole map replaced
-await db.collection(posts).update("hello", { meta: { views: 0 } });
+await db.collection(posts).update("hello", { stats: { views: 0 } });
 ```
 
-Dotted keys are field-path notation in `update` only. In a merge `set`, Firestore stores `"meta.views"` as a literal field name, so nest an object instead: `set(id, { meta: { views: 0 } }, { merge: true })`.
+Dotted keys are field-path notation in `update` only. In a merge `set`, Firestore stores `"stats.views"` as a literal field name, so nest an object instead: `set(id, { stats: { views: 0 } }, { merge: true })`.
 
 Merge `set` accepts recursively partial maps with `merge: true` or `mergeFields`, on normal, transaction and batch handles. Nested fields accept type-compatible sentinels, including `deleteField()` on optional fields. Array elements and atomic values such as dates stay complete. Whole-map `update` values require every required child because they replace the map.
 
 ```ts
 await db
   .collection(posts)
-  .set("hello", { meta: { pinned: deleteField() } }, { merge: true });
+  .set("hello", { stats: { pinned: deleteField() } }, { merge: true });
 ```
 
 ## Queries
@@ -126,9 +126,9 @@ const total = await db.collection(posts).sum("likes");
 const mean = await db.collection(posts).average("likes");
 ```
 
-For pagination, order by `documentId()` after the sort field and pass both values from the last document to the cursor. A cursor with only the title skips remaining documents with that title.
+For pagination, order by `documentId()` after the sort field and pass both values from the last document to the cursor. A cursor with only the title skips remaining documents with that title. In a collection-group query the `documentId()` cursor value is `last.meta.path`.
 
-Operator typing: `in` / `not-in` take an array, `array-contains` an element, `array-contains-any` an array of elements, comparison operators the field's type. Dotted paths reach into nested maps (`where("meta.views", ">", 100)`) and stop at arrays and timestamps (query those as whole values: `where("tags", "array-contains", "vip")`, never `"tags.0"`).
+Operator typing: `in` / `not-in` take an array, `array-contains` an element, `array-contains-any` an array of elements, comparison operators the field's type. Dotted paths reach into nested maps (`where("stats.views", ">", 100)`) and stop at arrays and timestamps (query those as whole values: `where("tags", "array-contains", "vip")`, never `"tags.0"`).
 
 Chained `where` is AND-only; there is no `or()`. For a disjunction drop to the SDK via `.ref`.
 
@@ -286,7 +286,7 @@ Firestore runs no converter for `updateDoc` / `ref.update(...)`, so a raw update
 
 ## Gotchas
 
-- Never declare `id` in a schema; `collection()` rejects it at compile time.
+- Never declare `id` or `meta` in a schema; `collection()` rejects both at compile time.
 - No runtime validation, ever. Drifted documents come back typed as valid; validate on read yourself where it matters.
 - Schemas must describe a Firestore-storable object (no directly nested arrays); `firesmith` does not police this, the SDK errors at write time.
 - Transaction and batch writes take no `await`; a forgotten one still enqueues, deliberately.

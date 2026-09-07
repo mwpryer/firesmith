@@ -47,6 +47,7 @@ export type Constraint =
 
 export interface RawSnapshot {
   readonly id: string;
+  readonly path: string;
   readonly exists: boolean;
   readonly data: DocumentData | undefined;
 }
@@ -83,7 +84,7 @@ export interface NativeAdapter {
 
 export interface RawConverter {
   toNative(data: DocumentData): DocumentData;
-  fromNative(id: string, data: DocumentData): unknown;
+  fromNative(id: string, path: string, data: DocumentData): unknown;
 }
 
 // Transaction writes buffer until commit, so only get awaits

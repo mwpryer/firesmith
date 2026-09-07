@@ -111,13 +111,17 @@ export function toNativeData(
   data: unknown,
   native: NativeAdapter,
 ): DocumentData {
-  // Id comes from the path, never stored
-  const { id: _, ...fields } = toNative(data, native) as DocumentData;
+  // Location metadata is read-only, never stored
+  const {
+    id: _,
+    meta: _meta,
+    ...fields
+  } = toNative(data, native) as DocumentData;
 
   return fields;
 }
 
-// Reads coerce stored values to neutral types, then merge the doc id in flat
+// Location metadata overrides stored id and meta fields
 export function readSnapshot<S extends StandardSchemaV1>(
   def: CollectionDef<S>,
   snapshot: RawSnapshot,
@@ -126,7 +130,12 @@ export function readSnapshot<S extends StandardSchemaV1>(
     return null;
   }
   const coerced = toNeutralData(snapshot.data, def.raw);
-  return { ...(coerced as object), id: snapshot.id } as Doc<S>;
+
+  return {
+    ...(coerced as object),
+    id: snapshot.id,
+    meta: { path: snapshot.path },
+  } as Doc<S>;
 }
 
 // Converter for .ref, coerces both ways so the SDK round-trips timestamps
@@ -138,9 +147,14 @@ export function makeConverter<S extends StandardSchemaV1>(
     toNative(data: DocumentData): DocumentData {
       return toNativeData(data, native);
     },
-    fromNative(id: string, data: DocumentData): unknown {
+    fromNative(id: string, path: string, data: DocumentData): unknown {
       const coerced = toNeutralData(data, def.raw);
-      return { ...(coerced as object), id };
+
+      return {
+        ...(coerced as object),
+        id,
+        meta: { path },
+      };
     },
   };
 }

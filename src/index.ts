@@ -46,6 +46,7 @@ export type {
   ArrayElement,
   CollectionDef,
   Doc,
+  DocMeta,
   FieldPath,
   InferOutput,
   MergeOptions,
