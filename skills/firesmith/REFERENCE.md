@@ -267,7 +267,6 @@ const places = collection("places", z.object({ at: z.custom<GeoPoint>() }));
 Every collection, document, and query handle exposes `.ref`, the raw SDK ref with the coercing converter attached, so unwrapped SDK calls still coerce where the SDK invokes the converter. `.ref` is typed `unknown`; use the entrypoint's typed helpers instead of casting:
 
 ```ts
-// or /web
 import { docRef, collectionRef, queryRef } from "firesmith/admin";
 
 // DocumentReference<Doc<S>>
@@ -276,6 +275,16 @@ const unsub = ref.onSnapshot((snap) => {
   // still coerced, Doc | undefined
   const post = snap.data();
 });
+```
+
+Web refs have no methods, so pass the ref to the SDK's free function instead:
+
+```ts
+import { onSnapshot } from "firebase/firestore";
+import { docRef } from "firesmith/web";
+
+const ref = docRef(db.collection(posts).doc("hello"));
+const unsub = onSnapshot(ref, (snap) => snap.data());
 ```
 
 Firestore runs no converter for `updateDoc` / `ref.update(...)`, so a raw update through `.ref` skips coercion entirely (pass native values). The typed `.update(...)` and merge `set` still coerce.

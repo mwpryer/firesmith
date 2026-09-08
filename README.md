@@ -19,7 +19,7 @@
 - **Constrained sentinels.** `increment`, `serverTimestamp`, `arrayUnion`, `arrayRemove` and `deleteField`, each limited to the field types it fits.
 - **One schema, both SDKs.** One Firebase-free definition gives the same typed surface on `firebase-admin` (server) and `firebase` (web).
 - **Coercion at the boundary.** A `Timestamp` reads back as a `Date`, `Bytes` as a `Uint8Array`, deep through maps and arrays, so you never hand-write a converter.
-- **Still Firestore.** A thin wrapper, not an ORM; every handle exposes `.ref` to drop to the raw SDK.
+- **Still Firestore.** A thin wrapper, not an ORM; collection, document and query handles expose `.ref` to drop to the raw SDK.
 
 ## Why
 
@@ -73,7 +73,7 @@ Timestamps round-trip. Write a `Date`, read a `Date`, however deeply it sits in 
 
 The whole surface is typed against the schema: reads and writes, the query builder and its aggregations, listeners, transactions, subcollections and collection-group queries. A misspelt field is a compile error rather than an empty result.
 
-Underneath, it is still plain Firestore. `firesmith` is a thin wrapper, not an ORM, and every handle exposes `.ref`, so you can always drop to the raw SDK.
+Underneath, it is still plain Firestore. `firesmith` is a thin wrapper, not an ORM, and collection, document and query handles expose `.ref`, so you can drop to the raw SDK outside transactions and batches.
 
 ## Install
 
@@ -464,7 +464,6 @@ Every handle exposes a `.ref` with the converter attached, so raw Firestore call
 `.ref` is typed `unknown` so the neutral core imports no SDK. Each entrypoint ships typed helpers, `docRef` / `collectionRef` / `queryRef`, that hand back the SDK ref typed to your schema, so you don't cast by hand.
 
 ```ts
-// or "firesmith/web"
 import { docRef } from "firesmith/admin";
 
 // DocumentReference<Doc<typeof posts.schema>>
@@ -473,6 +472,18 @@ const ref = docRef(db.collection(posts).doc("hello-world"));
 // raw SDK call firesmith does not wrap, data() is still coerced
 const unsub = ref.onSnapshot((snap) => {
   // post: Doc<typeof posts.schema> | undefined
+  const post = snap.data();
+});
+```
+
+The web SDK has no methods on its refs, so the same call is the SDK's free function taking the ref:
+
+```ts
+import { onSnapshot } from "firebase/firestore";
+import { docRef } from "firesmith/web";
+
+const ref = docRef(db.collection(posts).doc("hello-world"));
+const unsub = onSnapshot(ref, (snap) => {
   const post = snap.data();
 });
 ```
