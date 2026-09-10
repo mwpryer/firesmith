@@ -64,7 +64,7 @@ export class QueryBuilder<S extends StandardSchemaV1> {
   where<K extends WhereField<S>>(
     field: K,
     op: "in" | "not-in",
-    value: Array<WhereValue<S, K>>,
+    value: ReadonlyArray<WhereValue<S, K>>,
   ): QueryBuilder<S>;
   where<K extends WhereField<S>>(
     field: K,
@@ -74,7 +74,7 @@ export class QueryBuilder<S extends StandardSchemaV1> {
   where<K extends WhereField<S>>(
     field: K,
     op: "array-contains-any",
-    value: Array<ArrayElement<WhereValue<S, K>>>,
+    value: ReadonlyArray<ArrayElement<WhereValue<S, K>>>,
   ): QueryBuilder<S>;
   where<K extends WhereField<S>>(
     field: K,
@@ -85,7 +85,7 @@ export class QueryBuilder<S extends StandardSchemaV1> {
   where(
     field: DocumentIdRef,
     op: "in" | "not-in",
-    value: string[],
+    value: readonly string[],
   ): QueryBuilder<S>;
   where(
     field: DocumentIdRef,

@@ -54,7 +54,7 @@ type NeutralValue =
 export type WithFieldValue<T> = T extends Primitive | NeutralValue
   ? T
   : T extends ReadonlyArray<infer E>
-    ? Array<E>
+    ? ReadonlyArray<E>
     : T extends object
       ? {
           [K in keyof T]: WithFieldValue<T[K]> | SentinelFor<NonNullable<T[K]>>;
@@ -117,7 +117,7 @@ export type UpdatePaths<T> = {
 // Merge set options, two exclusive modes mirroring Firestore SetOptions
 export type MergeOptions<T> =
   | { merge: true }
-  | { mergeFields: Array<FieldPath<T>> };
+  | { mergeFields: ReadonlyArray<FieldPath<T>> };
 
 export type WhereFilterOp =
   | "=="

@@ -249,7 +249,38 @@ function schemaTypes(): void {
   void readAsset;
 }
 
+// Writes and array-valued query operators take any readonly array, including what a read produced
+function readonlyArrayTypes(): void {
+  const albums = collection(
+    "albums",
+    z.object({ tags: z.array(z.string()).readonly() }),
+  );
+  const a = db.collection(albums);
+  function copy(doc: Doc<typeof albums.schema>): void {
+    void a.set("copy", doc);
+    void a.add(doc);
+    void a.update("copy", { tags: doc.tags });
+    void a.set("copy", { tags: doc.tags }, { merge: true });
+    void a.set("copy", { tags: doc.tags }, { mergeFields: ["tags"] as const });
+  }
+  void copy;
+  const ids = ["a", "b"] as const;
+  void a.where("tags", "array-contains-any", ids);
+  void a.where(documentId(), "in", ids);
+  const ages = [20, 40] as const;
+  const tags = ["tag1"] as const;
+  const u = db.collection(users);
+  void u.where("age", "in", ages);
+  void u.where("age", "not-in", ages);
+  void u.set("john", { ...sampleUser(), tags });
+  // @ts-expect-error array-contains-any element type must match the array element type
+  void a.where("tags", "array-contains-any", [1, 2] as const);
+  // @ts-expect-error in takes an array of the field type
+  void u.where("age", "in", ["old"] as const);
+}
+
 void queryTypes;
 void updateTypes;
 void writeTypes;
 void schemaTypes;
+void readonlyArrayTypes;
