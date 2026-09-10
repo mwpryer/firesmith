@@ -9,7 +9,7 @@ import type {
 import { Database } from "@/core/database";
 import type { CollectionHandle, DocumentHandle } from "@/core/handles";
 import type { QueryBuilder } from "@/core/query";
-import type { Doc } from "@/core/types";
+import type { InferOutput } from "@/core/types";
 import { AdminDriver } from "@/drivers/admin";
 
 export function createDatabase(firestore: Firestore): Database {
@@ -19,20 +19,20 @@ export function createDatabase(firestore: Firestore): Database {
 // Typed escape hatches, cast the neutral unknown .ref to the admin SDK ref
 export function docRef<S extends StandardSchemaV1>(
   handle: DocumentHandle<S>,
-): DocumentReference<Doc<S>> {
-  return handle.ref as DocumentReference<Doc<S>>;
+): DocumentReference<InferOutput<S>> {
+  return handle.ref as DocumentReference<InferOutput<S>>;
 }
 
 export function collectionRef<S extends StandardSchemaV1>(
   handle: CollectionHandle<S>,
-): CollectionReference<Doc<S>> {
-  return handle.ref as CollectionReference<Doc<S>>;
+): CollectionReference<InferOutput<S>> {
+  return handle.ref as CollectionReference<InferOutput<S>>;
 }
 
 export function queryRef<S extends StandardSchemaV1>(
   builder: QueryBuilder<S>,
-): Query<Doc<S>> {
-  return builder.ref as Query<Doc<S>>;
+): Query<InferOutput<S>> {
+  return builder.ref as Query<InferOutput<S>>;
 }
 
 export * from "@/index";

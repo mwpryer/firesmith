@@ -402,7 +402,7 @@ Schemas speak `Date`. The boundary coerces between `Date` and `Timestamp` deeply
 > [!WARNING]
 > `Date` is millisecond precision and Firestore `Timestamp` is nanosecond, so the round-trip truncates sub-millisecond precision.
 
-If a field needs full nanosecond precision, keep it raw with the `raw` option (a list of dotted field paths). Those paths return the raw SDK value uncoerced on read, whatever the type, so your schema types them as the SDK type (`Timestamp` here) rather than a `Date`. The same option keeps any other field raw too, for example an SDK `Bytes` instead of a coerced `Uint8Array`.
+If a field needs full nanosecond precision, keep it raw with the `raw` option (a list of dotted field paths, checked against the schema). Those paths return the raw SDK value uncoerced on read, whatever the type, so your schema types them as the SDK type (`Timestamp` here) rather than a `Date`. The same option keeps any other field raw too, for example an SDK `Bytes` instead of a coerced `Uint8Array`.
 
 ```ts
 import { collection, isTimestampLike, type Timestamp } from "firesmith";
@@ -459,19 +459,21 @@ const places = collection(
 
 ## Escape hatch
 
-Every handle exposes a `.ref` with the converter attached, so raw Firestore calls that `firesmith` doesn't wrap still run through it where the SDK invokes it. The converter coerces both directions: a read coerces stored values to neutral types and merges the id in, a write coerces `Date` to `Timestamp` and translates sentinels.
+Every handle exposes a `.ref` with the converter attached, so raw Firestore calls that `firesmith` doesn't wrap still run through it where the SDK invokes it. The converter coerces both directions: a read coerces stored values to neutral types, a write coerces `Date` to `Timestamp` and translates sentinels.
 
-`.ref` is typed `unknown` so the neutral core imports no SDK. Each entrypoint ships typed helpers, `docRef` / `collectionRef` / `queryRef`, that hand back the SDK ref typed to your schema, so you don't cast by hand.
+`.ref` is typed `unknown` so the neutral core imports no SDK. Each entrypoint ships typed helpers, `docRef` / `collectionRef` / `queryRef`, that hand back the SDK ref typed to your schema's fields, without `id` or `meta`, so you don't cast by hand.
 
 ```ts
 import { docRef } from "firesmith/admin";
 
-// DocumentReference<Doc<typeof posts.schema>>
+// DocumentReference<InferOutput<typeof posts.schema>>
 const ref = docRef(db.collection(posts).doc("hello-world"));
+
+await ref.set({ title: "Hello", likes: 0, createdAt: new Date() });
 
 // raw SDK call firesmith does not wrap, data() is still coerced
 const unsub = ref.onSnapshot((snap) => {
-  // post: Doc<typeof posts.schema> | undefined
+  // post: InferOutput<typeof posts.schema> | undefined, snap.id is the id
   const post = snap.data();
 });
 ```

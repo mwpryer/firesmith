@@ -16,7 +16,7 @@ export interface CollectionDef<S extends StandardSchemaV1 = StandardSchemaV1> {
   readonly name: string;
   readonly schema: S;
   // Field paths to return as the raw SDK value instead of coerced
-  readonly raw?: readonly string[];
+  readonly raw?: ReadonlyArray<FieldPath<InferOutput<S>>>;
 }
 
 export type InferOutput<S extends StandardSchemaV1> =

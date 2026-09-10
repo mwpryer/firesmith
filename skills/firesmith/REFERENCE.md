@@ -229,7 +229,7 @@ await batch.commit();
 
 ## Timestamps, raw fields
 
-Schemas speak `Date`; the boundary coerces `Date` to `Timestamp` on write and back on read, deeply. `Date` is millisecond precision, so the round-trip truncates sub-millisecond precision. For full precision keep the field raw:
+Schemas speak `Date`; the boundary coerces `Date` to `Timestamp` on write and back on read, deeply. `Date` is millisecond precision, so the round-trip truncates sub-millisecond precision. For full precision list the field in `raw`, dotted field paths checked against the schema:
 
 ```ts
 import { collection, isTimestampLike, type Timestamp } from "firesmith";
@@ -264,15 +264,16 @@ const places = collection("places", z.object({ at: z.custom<GeoPoint>() }));
 
 ## Escape hatch: `.ref`
 
-Every collection, document, and query handle exposes `.ref`, the raw SDK ref with the coercing converter attached, so unwrapped SDK calls still coerce where the SDK invokes the converter. `.ref` is typed `unknown`; use the entrypoint's typed helpers instead of casting:
+Every collection, document, and query handle exposes `.ref`, the raw SDK ref with the coercing converter attached, so unwrapped SDK calls still coerce where the SDK invokes the converter. `.ref` is typed `unknown`; use the entrypoint's typed helpers instead of casting. They type the ref to the schema's fields, no `id` or `meta`:
 
 ```ts
 import { docRef, collectionRef, queryRef } from "firesmith/admin";
 
-// DocumentReference<Doc<S>>
+// DocumentReference<InferOutput<S>>
 const ref = docRef(db.collection(posts).doc("hello"));
+await ref.set({ title: "Hello", likes: 0, tags: [], createdAt: new Date() });
 const unsub = ref.onSnapshot((snap) => {
-  // still coerced, Doc | undefined
+  // still coerced, InferOutput<S> | undefined, snap.id is the id
   const post = snap.data();
 });
 ```

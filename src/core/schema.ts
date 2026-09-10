@@ -1,9 +1,9 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import type { CollectionDef, InferOutput } from "@/core/types";
+import type { CollectionDef, FieldPath, InferOutput } from "@/core/types";
 
-export interface CollectionOptions {
-  raw?: readonly string[];
+export interface CollectionOptions<S extends StandardSchemaV1> {
+  raw?: ReadonlyArray<FieldPath<InferOutput<S>>>;
 }
 
 export function collection<S extends StandardSchemaV1>(
@@ -20,7 +20,7 @@ export function collection<S extends StandardSchemaV1>(
     > extends never
       ? unknown
       : never),
-  options?: CollectionOptions,
+  options?: CollectionOptions<S>,
 ): CollectionDef<S> {
   if (options?.raw && options.raw.length > 0) {
     return { name, schema, raw: options.raw };

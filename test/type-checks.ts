@@ -1,5 +1,8 @@
+import type { Firestore as AdminFirestore } from "firebase-admin/firestore";
+import { setDoc } from "firebase/firestore";
 import { z } from "zod";
 
+import { docRef as adminDocRef } from "@/admin";
 import type { Database } from "@/core/database";
 import {
   arrayUnion,
@@ -16,7 +19,8 @@ import type {
   MergeOptions,
   VectorValue,
 } from "@/index";
-import { places, samplePlace, sampleUser, users } from "./support";
+import { docRef as webDocRef } from "@/web";
+import { places, posts, samplePlace, sampleUser, users } from "./support";
 
 // Compile-time only, never executed, typecheck enforces every ts-expect-error
 
@@ -247,6 +251,12 @@ function schemaTypes(): void {
     void vec;
   }
   void readAsset;
+  // Raw paths are checked against the schema, nested maps included
+  void collection("events", z.object({ stats: z.object({ ts: z.date() }) }), {
+    raw: ["stats.ts"],
+  });
+  // @ts-expect-error raw path must name a schema field
+  void collection("events", z.object({ at: z.date() }), { raw: ["ta"] });
 }
 
 // Writes and array-valued query operators take any readonly array, including what a read produced
@@ -279,8 +289,26 @@ function readonlyArrayTypes(): void {
   void u.where("age", "in", ["old"] as const);
 }
 
+// Typed refs carry the write shape so SDK writes need no id or meta
+declare const adminFirestore: AdminFirestore;
+
+function refTypes(): void {
+  const p = db.collection(posts);
+  const adminRef = adminDocRef(p.doc("hello"));
+  void adminRef.set({ title: "Hi", likes: 0 });
+  void adminRef.create({ title: "Hi", likes: 0 });
+  void adminFirestore.batch().set(adminRef, { title: "Hi", likes: 0 });
+  // @ts-expect-error id is location metadata, never part of a write
+  void adminRef.set({ title: "Hi", likes: 0, id: "hello" });
+  const webRef = webDocRef(p.doc("hello"));
+  void setDoc(webRef, { title: "Hi", likes: 0 });
+  // @ts-expect-error meta is location metadata, never part of a write
+  void setDoc(webRef, { title: "Hi", likes: 0, meta: { path: "posts/hello" } });
+}
+
 void queryTypes;
 void updateTypes;
 void writeTypes;
 void schemaTypes;
 void readonlyArrayTypes;
+void refTypes;
