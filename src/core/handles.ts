@@ -14,6 +14,7 @@ import {
 import type { DocumentIdRef } from "@/core/firestore";
 import {
   type NumericField,
+  type OrderField,
   QueryBuilder,
   type QuerySnapshotObserver,
   type WhereField,
@@ -121,10 +122,11 @@ export class CollectionHandle<S extends StandardSchemaV1> {
     return this.query().where(field as never, op as never, value as never);
   }
 
-  orderBy(field: WhereField<S>, direction?: OrderByDirection): QueryBuilder<S>;
-  orderBy(field: DocumentIdRef, direction?: OrderByDirection): QueryBuilder<S>;
-  orderBy(field: FieldRef, direction?: OrderByDirection): QueryBuilder<S> {
-    return this.query().orderBy(field as never, direction);
+  orderBy<F extends OrderField<S>>(
+    field: F,
+    direction?: OrderByDirection,
+  ): QueryBuilder<S, [F]> {
+    return this.query().orderBy(field, direction);
   }
 
   limit(limit: number): QueryBuilder<S> {

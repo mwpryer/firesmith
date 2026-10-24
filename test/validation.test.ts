@@ -64,6 +64,7 @@ for (const kit of allKits) {
       // Empty and oversized in filters are left to the backend, admin and web SDKs disagree on surfacing
       it("rejects more cursor values than orderBy clauses", async () => {
         await expect(
+          // @ts-expect-error one orderBy takes one cursor value
           kit.db.collection(users).orderBy("age").startAt(20, 30).get(),
         ).rejects.toThrow();
       });

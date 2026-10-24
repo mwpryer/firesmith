@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "bun:test";
 
 import { documentId } from "@/index";
 import { allKits } from "./emulator";
-import { posts, seedUsers, users } from "./support";
+import { places, posts, samplePlace, seedUsers, users } from "./support";
 
 for (const kit of allKits) {
   describe(kit.name, () => {
@@ -63,6 +63,25 @@ for (const kit of allKits) {
         ).toEqual([]);
       });
 
+      it("starts after a returned document, tie-broken by its id", async () => {
+        const col = kit.db.collection(places);
+        await col.set("a", samplePlace());
+        await col.set("b", samplePlace());
+        await col.set("c", {
+          ...samplePlace(),
+          stats: {
+            visits: 1,
+            lastVisit: new Date("2020-01-01T00:00:00.000Z"),
+          },
+        });
+        const byVisits = col.orderBy("stats.visits").orderBy(documentId());
+        const first = (await byVisits.limit(1).get())[0]!;
+
+        const next = await byVisits.startAfterDoc(first).get();
+
+        expect(next.map((place) => place.id)).toEqual(["b", "c"]);
+      });
+
       it("bounds by a Date cursor", async () => {
         // Seeded users share the sample date, so an earlier bound is empty
         const byDate = kit.db.collection(users).orderBy("createdAt");
@@ -73,6 +92,7 @@ for (const kit of allKits) {
 
       it("rejects a cursor without an orderBy", async () => {
         await expect(
+          // @ts-expect-error a cursor needs an orderBy
           kit.db.collection(users).query().startAt(20).get(),
         ).rejects.toThrow();
       });

@@ -41,6 +41,34 @@ export type NumericField<S extends StandardSchemaV1> = NumericFieldPath<
   InferOutput<S>
 >;
 
+export type OrderField<S extends StandardSchemaV1> =
+  | WhereField<S>
+  | DocumentIdRef;
+
+// Document id cursor values are plain strings
+type CursorValue<S extends StandardSchemaV1, F> =
+  F extends WhereField<S> ? WhereValue<S, F> : string;
+
+// SDK takes fewer cursor values than orderBy fields, never none
+type Prefix<T extends readonly unknown[]> = T extends readonly [
+  ...infer Head,
+  unknown,
+]
+  ? Prefix<Head> | T
+  : never;
+
+// Cursor values typed against the orderBy chain, in order
+export type CursorValues<
+  S extends StandardSchemaV1,
+  O extends ReadonlyArray<OrderField<S>>,
+> = Prefix<{ [I in keyof O]: CursorValue<S, O[I]> }>;
+
+// Document cursors need documentId() in the chain so the position is unique
+export type DocCursor<
+  S extends StandardSchemaV1,
+  O extends ReadonlyArray<OrderField<S>>,
+> = DocumentIdRef extends O[number] ? Doc<S> : never;
+
 export type QuerySnapshotObserver<S extends StandardSchemaV1> =
   | ((docs: Array<Doc<S>>) => void)
   | {
@@ -48,7 +76,11 @@ export type QuerySnapshotObserver<S extends StandardSchemaV1> =
       error?: (error: unknown) => void;
     };
 
-export class QueryBuilder<S extends StandardSchemaV1> {
+// O is the orderBy chain so far, it types the cursors
+export class QueryBuilder<
+  S extends StandardSchemaV1,
+  O extends ReadonlyArray<OrderField<S>> = [],
+> {
   readonly #ctx: QueryContext<S>;
   readonly #constraints: readonly Constraint[];
 
@@ -57,72 +89,116 @@ export class QueryBuilder<S extends StandardSchemaV1> {
     this.#constraints = constraints;
   }
 
-  #append(constraint: Constraint): QueryBuilder<S> {
+  #append(constraint: Constraint): QueryBuilder<S, O> {
     return new QueryBuilder(this.#ctx, [...this.#constraints, constraint]);
+  }
+
+  // Values at each orderBy field of a returned document
+  #docValues(doc: Doc<S>): unknown[] {
+    return this.#constraints.flatMap((constraint) => {
+      if (constraint.type !== "orderBy") {
+        return [];
+      }
+      if (typeof constraint.field !== "string") {
+        return [
+          this.#ctx.source.kind === "collectionGroup" ? doc.meta.path : doc.id,
+        ];
+      }
+
+      return [
+        constraint.field
+          .split(".")
+          .reduce<unknown>(
+            (value, key) => (value as Record<string, unknown>)[key],
+            doc,
+          ),
+      ];
+    });
   }
 
   where<K extends WhereField<S>>(
     field: K,
     op: "in" | "not-in",
     value: ReadonlyArray<WhereValue<S, K>>,
-  ): QueryBuilder<S>;
+  ): QueryBuilder<S, O>;
   where<K extends WhereField<S>>(
     field: K,
     op: "array-contains",
     value: ArrayElement<WhereValue<S, K>>,
-  ): QueryBuilder<S>;
+  ): QueryBuilder<S, O>;
   where<K extends WhereField<S>>(
     field: K,
     op: "array-contains-any",
     value: ReadonlyArray<ArrayElement<WhereValue<S, K>>>,
-  ): QueryBuilder<S>;
+  ): QueryBuilder<S, O>;
   where<K extends WhereField<S>>(
     field: K,
     op: "==" | "!=" | "<" | "<=" | ">" | ">=",
     value: WhereValue<S, K>,
-  ): QueryBuilder<S>;
+  ): QueryBuilder<S, O>;
   // Document id queries, id values are plain strings
   where(
     field: DocumentIdRef,
     op: "in" | "not-in",
     value: readonly string[],
-  ): QueryBuilder<S>;
+  ): QueryBuilder<S, O>;
   where(
     field: DocumentIdRef,
     op: "==" | "!=" | "<" | "<=" | ">" | ">=",
     value: string,
-  ): QueryBuilder<S>;
-  where(field: FieldRef, op: WhereFilterOp, value: unknown): QueryBuilder<S> {
+  ): QueryBuilder<S, O>;
+  where(
+    field: FieldRef,
+    op: WhereFilterOp,
+    value: unknown,
+  ): QueryBuilder<S, O> {
     return this.#append({ type: "where", field, op, value });
   }
 
-  orderBy(field: WhereField<S>, direction?: OrderByDirection): QueryBuilder<S>;
-  orderBy(field: DocumentIdRef, direction?: OrderByDirection): QueryBuilder<S>;
-  orderBy(
-    field: FieldRef,
+  orderBy<F extends OrderField<S>>(
+    field: F,
     direction: OrderByDirection = "asc",
-  ): QueryBuilder<S> {
-    return this.#append({ type: "orderBy", field, direction });
+  ): QueryBuilder<S, [...O, F]> {
+    return new QueryBuilder<S, [...O, F]>(this.#ctx, [
+      ...this.#constraints,
+      { type: "orderBy", field, direction },
+    ]);
   }
 
-  limit(limit: number): QueryBuilder<S> {
+  limit(limit: number): QueryBuilder<S, O> {
     return this.#append({ type: "limit", limit });
   }
 
-  startAt(...values: unknown[]): QueryBuilder<S> {
+  startAt(...values: CursorValues<S, O>): QueryBuilder<S, O> {
     return this.#append({ type: "startAt", values });
   }
 
-  startAfter(...values: unknown[]): QueryBuilder<S> {
+  startAfter(...values: CursorValues<S, O>): QueryBuilder<S, O> {
     return this.#append({ type: "startAfter", values });
   }
 
-  endAt(...values: unknown[]): QueryBuilder<S> {
+  endAt(...values: CursorValues<S, O>): QueryBuilder<S, O> {
     return this.#append({ type: "endAt", values });
   }
 
-  endBefore(...values: unknown[]): QueryBuilder<S> {
+  endBefore(...values: CursorValues<S, O>): QueryBuilder<S, O> {
     return this.#append({ type: "endBefore", values });
+  }
+
+  startAtDoc(doc: DocCursor<S, O>): QueryBuilder<S, O> {
+    return this.#append({ type: "startAt", values: this.#docValues(doc) });
+  }
+
+  startAfterDoc(doc: DocCursor<S, O>): QueryBuilder<S, O> {
+    return this.#append({ type: "startAfter", values: this.#docValues(doc) });
+  }
+
+  endAtDoc(doc: DocCursor<S, O>): QueryBuilder<S, O> {
+    return this.#append({ type: "endAt", values: this.#docValues(doc) });
+  }
+
+  endBeforeDoc(doc: DocCursor<S, O>): QueryBuilder<S, O> {
+    return this.#append({ type: "endBefore", values: this.#docValues(doc) });
   }
 
   async get(): Promise<Array<Doc<S>>> {

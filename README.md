@@ -243,12 +243,12 @@ const popular = await db
   .limit(10)
   .get();
 
-// cursors for pagination, startAt / startAfter / endAt / endBefore
+// next page after the last document, also startAtDoc / endAtDoc / endBeforeDoc
 const nextPage = await db
   .collection(posts)
   .orderBy("title")
   .orderBy(documentId())
-  .startAfter(last.title, last.id)
+  .startAfterDoc(last)
   .limit(10)
   .get();
 
@@ -258,7 +258,7 @@ const totalLikes = await db.collection(posts).sum("likes");
 const meanLikes = await db.collection(posts).average("likes");
 ```
 
-`last` is the previous page's final document. Ordering by ID too prevents skipping posts with matching titles. In a collection-group query the `documentId()` cursor value is `last.meta.path`.
+`last` is the previous page's final document. `startAfterDoc` compiles only when the chain includes `documentId()`, so posts with matching titles are never skipped. Value cursors such as `startAfter(last.title, last.id)` are typed against the `orderBy` chain. In a collection-group query the `documentId()` cursor value is `last.meta.path`.
 
 `where` is typed against the schema. The field must exist and the value must match its type (`in` / `not-in` take an array, `array-contains` takes an element, and so on). A mismatch is a compile error.
 

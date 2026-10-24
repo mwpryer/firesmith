@@ -98,6 +98,26 @@ for (const kit of allKits) {
           },
         ]);
       });
+
+      it("paginates past a collection-group document passed as the cursor", async () => {
+        const col = kit.db.collection(users);
+        await col.doc("jane").collection(posts).set("same", {
+          title: "Same",
+          likes: 1,
+        });
+        await col.doc("john").collection(posts).set("same", {
+          title: "Same",
+          likes: 1,
+        });
+        const query = kit.db.collectionGroup(posts).orderBy(documentId());
+        const first = (await query.limit(1).get())[0]!;
+
+        const next = await query.startAfterDoc(first).get();
+
+        expect(next.map((post) => post.meta.path)).toEqual([
+          "users/john/posts/same",
+        ]);
+      });
     });
   });
 }

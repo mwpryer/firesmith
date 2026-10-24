@@ -8,7 +8,7 @@ import type {
 
 import { Database } from "@/core/database";
 import type { CollectionHandle, DocumentHandle } from "@/core/handles";
-import type { QueryBuilder } from "@/core/query";
+import type { OrderField, QueryBuilder } from "@/core/query";
 import type { InferOutput } from "@/core/types";
 import { AdminDriver } from "@/drivers/admin";
 
@@ -29,9 +29,10 @@ export function collectionRef<S extends StandardSchemaV1>(
   return handle.ref as CollectionReference<InferOutput<S>>;
 }
 
-export function queryRef<S extends StandardSchemaV1>(
-  builder: QueryBuilder<S>,
-): Query<InferOutput<S>> {
+export function queryRef<
+  S extends StandardSchemaV1,
+  O extends ReadonlyArray<OrderField<S>>,
+>(builder: QueryBuilder<S, O>): Query<InferOutput<S>> {
   return builder.ref as Query<InferOutput<S>>;
 }
 

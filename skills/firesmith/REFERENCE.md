@@ -107,17 +107,18 @@ import { documentId } from "firesmith";
 const base = db.collection(posts).where("likes", ">=", 10);
 const top = await base.orderBy("likes", "desc").limit(10).get();
 
-// Cursors take field values matching the orderBy chain
+// Cursor from the previous page's last document
 const byTitle = db.collection(posts).orderBy("title").orderBy(documentId());
 const firstPage = await byTitle.limit(10).get();
 const last = firstPage.at(-1);
 if (last) {
-  const nextPage = await byTitle
-    .startAfter(last.title, last.id)
-    .limit(10)
-    .get();
+  const nextPage = await byTitle.startAfterDoc(last).limit(10).get();
 }
-// also startAt / endAt / endBefore
+// also startAtDoc / endAtDoc / endBeforeDoc
+
+// Or values typed against the orderBy chain, any non-empty prefix of it
+const fromTitle = await byTitle.startAt("M").get();
+// also startAfter / endAt / endBefore
 
 // Aggregations, typed to numeric fields
 const n = await base.count();
@@ -126,7 +127,7 @@ const total = await db.collection(posts).sum("likes");
 const mean = await db.collection(posts).average("likes");
 ```
 
-For pagination, order by `documentId()` after the sort field and pass both values from the last document to the cursor. A cursor with only the title skips remaining documents with that title. In a collection-group query the `documentId()` cursor value is `last.meta.path`.
+For pagination, order by `documentId()` after the sort field and pass the last document to `startAfterDoc`. The `*Doc` cursors compile only when the chain includes `documentId()`, since a cursor with only the title skips remaining documents with that title. In a collection-group query the `documentId()` cursor value is `last.meta.path`.
 
 Operator typing: `in` / `not-in` take an array, `array-contains` an element, `array-contains-any` an array of elements, comparison operators the field's type. Dotted paths reach into nested maps (`where("stats.views", ">", 100)`) and stop at arrays and timestamps (query those as whole values: `where("tags", "array-contains", "vip")`, never `"tags.0"`).
 
@@ -302,5 +303,5 @@ Firestore runs no converter for `updateDoc` / `ref.update(...)`, so a raw update
 - Transaction and batch writes take no `await`; a forgotten one still enqueues, deliberately.
 - `deleteField()` compiles only on optional fields and only in `update` (and merge `set` field values).
 - `average()` is `null` over an empty match; `sum()` is `0`.
-- Cursor values must match the `orderBy` chain; there is no cursor-by-document.
+- Cursor values are typed against the `orderBy` chain; pass a document to the `*Doc` cursors, never to `startAfter`.
 - Admin-only SDK features (`create`, `getAll`, `BulkWriter`, preconditions) are off the neutral surface; reach them via `.ref`.

@@ -36,7 +36,10 @@ export {
 export type { DocSnapshotObserver } from "@/core/handles";
 export { QueryBuilder } from "@/core/query";
 export type {
+  CursorValues,
+  DocCursor,
   NumericField,
+  OrderField,
   QuerySnapshotObserver,
   WhereField,
   WhereValue,

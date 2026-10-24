@@ -2,7 +2,7 @@ import type { Firestore as AdminFirestore } from "firebase-admin/firestore";
 import { setDoc } from "firebase/firestore";
 import { z } from "zod";
 
-import { docRef as adminDocRef } from "@/admin";
+import { docRef as adminDocRef, queryRef as adminQueryRef } from "@/admin";
 import type { Database } from "@/core/database";
 import {
   arrayUnion,
@@ -289,6 +289,33 @@ function readonlyArrayTypes(): void {
   void u.where("age", "in", ["old"] as const);
 }
 
+declare const user: Doc<typeof users.schema>;
+declare const post: Doc<typeof posts.schema>;
+
+function cursorTypes(): void {
+  const byAge = db.collection(users).orderBy("age");
+  const byAgeThenId = byAge.orderBy(documentId());
+  // Values follow the orderBy chain, any non-empty prefix of it
+  void byAge.startAfter(30);
+  void byAgeThenId.startAfter(30, "john");
+  void byAgeThenId.endBefore(30);
+  void db.collection(users).orderBy("createdAt").startAt(new Date());
+  void db.collectionGroup(users).orderBy(documentId()).startAt("users/john");
+  // where() and limit() keep the chain
+  void byAge.where("name", "==", "John").limit(1).startAfter(30);
+  // @ts-expect-error value type must match the ordered field (age is a number)
+  void byAge.startAfter("old");
+  // @ts-expect-error a document is not a cursor value
+  void byAgeThenId.startAfter(user);
+  // Document cursors need documentId() in the chain
+  void byAgeThenId.startAfterDoc(user);
+  void byAgeThenId.endBeforeDoc(user);
+  // @ts-expect-error without documentId() the position is not unique
+  void byAge.startAfterDoc(user);
+  // @ts-expect-error document must come from the same schema
+  void byAgeThenId.startAfterDoc(post);
+}
+
 // Typed refs carry the write shape so SDK writes need no id or meta
 declare const adminFirestore: AdminFirestore;
 
@@ -300,6 +327,7 @@ function refTypes(): void {
   void adminFirestore.batch().set(adminRef, { title: "Hi", likes: 0 });
   // @ts-expect-error id is location metadata, never part of a write
   void adminRef.set({ title: "Hi", likes: 0, id: "hello" });
+  void adminQueryRef(p.orderBy("likes").orderBy(documentId()));
   const webRef = webDocRef(p.doc("hello"));
   void setDoc(webRef, { title: "Hi", likes: 0 });
   // @ts-expect-error meta is location metadata, never part of a write
@@ -311,4 +339,5 @@ void updateTypes;
 void writeTypes;
 void schemaTypes;
 void readonlyArrayTypes;
+void cursorTypes;
 void refTypes;
