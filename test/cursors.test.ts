@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "bun:test";
+import { z } from "zod";
 
-import { documentId } from "@/index";
+import { collection, documentId, isTimestampLike } from "@/index";
+import type { Timestamp } from "@/index";
 import { allKits } from "./emulator";
 import { places, posts, samplePlace, seedUsers, users } from "./support";
 
@@ -80,6 +82,31 @@ for (const kit of allKits) {
         const next = await byVisits.startAfterDoc(first).get();
 
         expect(next.map((place) => place.id)).toEqual(["b", "c"]);
+      });
+
+      it("starts after a returned date with sub-millisecond precision", async () => {
+        // A Timestamp-typed def writes the microseconds a Date cannot hold
+        const stored = collection(
+          "events",
+          z.object({ at: z.custom<Timestamp>(isTimestampLike) }),
+        );
+        const events = collection("events", z.object({ at: z.date() }));
+        await kit.db
+          .collection(stored)
+          .set("a", { at: kit.timestamp(1700000000, 123456000) });
+        await kit.db
+          .collection(stored)
+          .set("b", { at: kit.timestamp(1700000000, 123456000) });
+        const byAt = kit.db
+          .collection(events)
+          .orderBy("at")
+          .orderBy(documentId())
+          .limit(1);
+        const first = (await byAt.get())[0]!;
+
+        const next = await byAt.startAfter(first.at, first.id).get();
+
+        expect(next.map((event) => event.id)).toEqual(["b"]);
       });
 
       it("bounds by a Date cursor", async () => {

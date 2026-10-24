@@ -77,6 +77,7 @@ export interface QueryObserver {
 
 // Turns neutral values into SDK's Timestamp, FieldValue and bytes type
 export interface NativeAdapter {
+  timestamp(seconds: number, nanoseconds: number): unknown;
   timestampFromDate(date: Date): unknown;
   fieldValue(sentinel: Sentinel): unknown;
   bytesFromUint8Array(bytes: Uint8Array): unknown;

@@ -86,6 +86,8 @@ export class WebDriver implements Driver {
   constructor(firestore: Firestore) {
     this.#fs = firestore;
     this.native = {
+      timestamp: (seconds, nanoseconds) =>
+        new WebTimestamp(seconds, nanoseconds),
       timestampFromDate: (date) => WebTimestamp.fromDate(date),
       fieldValue: (sentinel) => this.#fieldValue(sentinel),
       bytesFromUint8Array: (bytes) => WebBytes.fromUint8Array(bytes),

@@ -50,6 +50,8 @@ export class AdminDriver implements Driver {
   constructor(firestore: Firestore) {
     this.#fs = firestore;
     this.native = {
+      timestamp: (seconds, nanoseconds) =>
+        new AdminTimestamp(seconds, nanoseconds),
       timestampFromDate: (date) => AdminTimestamp.fromDate(date),
       fieldValue: (sentinel) => this.#fieldValue(sentinel),
       // Admin serialises a Uint8Array as bytes, so hand it straight through

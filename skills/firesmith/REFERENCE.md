@@ -230,7 +230,7 @@ await batch.commit();
 
 ## Timestamps, raw fields
 
-Schemas speak `Date`; the boundary coerces `Date` to `Timestamp` on write and back on read, deeply. `Date` is millisecond precision, so the round-trip truncates sub-millisecond precision. For full precision list the field in `raw`, dotted field paths checked against the schema:
+Schemas speak `Date`; the boundary coerces `Date` to `Timestamp` on write and back on read, deeply. `Date` is millisecond precision, but each returned `Date` remembers its exact timestamp, so writing it back or passing it as a cursor keeps full precision. A copy, such as `new Date(date)` or a date parsed from JSON, truncates to milliseconds, so as a cursor on a `serverTimestamp()` field it repeats the last document. For full precision through copies, or to paginate through an API that sends cursors as JSON, list the field in `raw`, dotted field paths checked against the schema:
 
 ```ts
 import { collection, isTimestampLike, type Timestamp } from "firesmith";

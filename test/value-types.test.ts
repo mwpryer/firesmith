@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { z } from "zod";
 
-import { collection } from "@/index";
-import type { GeoPoint } from "@/index";
+import { collection, isTimestampLike } from "@/index";
+import type { GeoPoint, Timestamp } from "@/index";
 import { allKits } from "./emulator";
 
 for (const kit of allKits) {
@@ -22,6 +22,21 @@ for (const kit of allKits) {
         expect(got!.at.longitude).toBeCloseTo(-0.12);
         // The real SDK class survives, the boundary never walked it as a plain map
         expect(kit.isSdkGeoPoint(got!.at)).toBe(true);
+      });
+
+      it("writes the other SDK's Timestamp at its exact time", async () => {
+        const other = allKits.find((candidate) => candidate !== kit)!;
+        const events = collection(
+          "events",
+          z.object({ at: z.custom<Timestamp>(isTimestampLike) }),
+          { raw: ["at"] },
+        );
+        const col = kit.db.collection(events);
+
+        await col.set("e1", { at: other.timestamp(1700000000, 123456000) });
+
+        const at = (await col.get("e1"))!.at;
+        expect([at.seconds, at.nanoseconds]).toEqual([1700000000, 123456000]);
       });
     });
 

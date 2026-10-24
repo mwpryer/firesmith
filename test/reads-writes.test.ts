@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { collectionRef as adminCollectionRef } from "@/admin";
 import { collection, isTimestampLike } from "@/index";
+import type { Timestamp } from "@/index";
 import { collectionRef as webCollectionRef } from "@/web";
 import { allKits } from "./emulator";
 import { sampleUser, users } from "./support";
@@ -117,6 +118,44 @@ for (const kit of allKits) {
         };
         expect(isTimestampLike(stored.at)).toBe(true);
         expect(isTimestampLike(stored.stats.start)).toBe(true);
+      });
+
+      it("writes back a read date at its stored precision", async () => {
+        // A raw def writes and reads the microseconds a Date cannot hold
+        const precise = collection(
+          "events",
+          z.object({ at: z.custom<Timestamp>(isTimestampLike) }),
+          { raw: ["at"] },
+        );
+        const events = collection("events", z.object({ at: z.date() }));
+        await kit.db
+          .collection(precise)
+          .set("e1", { at: kit.timestamp(1700000000, 123456000) });
+        const read = await kit.db.collection(events).get("e1");
+
+        await kit.db.collection(events).set("e1", { at: read!.at });
+
+        const written = await kit.db.collection(precise).get("e1");
+        expect(written!.at.nanoseconds).toBe(123456000);
+      });
+
+      it("writes a read date changed since at its new time", async () => {
+        const precise = collection(
+          "events",
+          z.object({ at: z.custom<Timestamp>(isTimestampLike) }),
+          { raw: ["at"] },
+        );
+        const events = collection("events", z.object({ at: z.date() }));
+        await kit.db
+          .collection(precise)
+          .set("e1", { at: kit.timestamp(1700000000, 123456000) });
+        const read = await kit.db.collection(events).get("e1");
+        read!.at.setTime(1700000060000);
+
+        await kit.db.collection(events).set("e1", { at: read!.at });
+
+        const written = await kit.db.collection(precise).get("e1");
+        expect(written!.at.toMillis()).toBe(1700000060000);
       });
 
       it("reports existence and returns null for a missing document", async () => {

@@ -400,7 +400,7 @@ Merge `set` accepts recursively partial maps with either `merge: true` or `merge
 Schemas speak `Date`. The boundary coerces between `Date` and `Timestamp` deeply (including nested maps and arrays) by runtime type. On read, every Firestore `Timestamp` becomes a `Date`. On write, a `Date` becomes a `Timestamp`.
 
 > [!WARNING]
-> `Date` is millisecond precision and Firestore `Timestamp` is nanosecond, so the round-trip truncates sub-millisecond precision.
+> `Date` is millisecond precision and Firestore `Timestamp` is nanosecond. Each `Date` firesmith returns remembers its exact timestamp, so writing it back or passing it as a cursor keeps full precision. A copy forgets it, for example `new Date(date)` or a date parsed from JSON, and truncates to milliseconds. A copied cursor then sorts before a stored value with microseconds, such as a `serverTimestamp()`, so the next page repeats the last document. To paginate through an API that sends cursors as JSON, keep the field raw.
 
 If a field needs full nanosecond precision, keep it raw with the `raw` option (a list of dotted field paths, checked against the schema). Those paths return the raw SDK value uncoerced on read, whatever the type, so your schema types them as the SDK type (`Timestamp` here) rather than a `Date`. The same option keeps any other field raw too, for example an SDK `Bytes` instead of a coerced `Uint8Array`.
 

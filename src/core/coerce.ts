@@ -9,6 +9,12 @@ import type {
 import { isSentinel, isTimestampLike } from "@/core/firestore";
 import type { CollectionDef, Doc } from "@/core/types";
 
+// Exact stored timestamp behind each Date read, a Date holds only milliseconds
+const readTimestamps = new WeakMap<
+  Date,
+  { time: number; seconds: number; nanoseconds: number }
+>();
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== "object") {
     return false;
@@ -44,7 +50,14 @@ function toNeutral(
     return value;
   }
   if (isTimestampLike(value)) {
-    return value.toDate();
+    const date = value.toDate();
+    readTimestamps.set(date, {
+      time: date.getTime(),
+      seconds: value.seconds,
+      nanoseconds: value.nanoseconds,
+    });
+
+    return date;
   }
   // Admin bytes are a Buffer, normalise to a plain Uint8Array so neither leaks
   if (value instanceof Uint8Array) {
@@ -73,10 +86,17 @@ export function toNative(value: unknown, native: NativeAdapter): unknown {
   if (value === null || typeof value !== "object") {
     return value;
   }
+  // Rebuilt so either SDK's Timestamp writes through this driver
   if (isTimestampLike(value)) {
-    return value;
+    return native.timestamp(value.seconds, value.nanoseconds);
   }
   if (value instanceof Date) {
+    const read = readTimestamps.get(value);
+    // A date mutated since read no longer matches its stored timestamp
+    if (read?.time === value.getTime()) {
+      return native.timestamp(read.seconds, read.nanoseconds);
+    }
+
     return native.timestampFromDate(value);
   }
   if (isSentinel(value)) {
