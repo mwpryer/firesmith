@@ -14,6 +14,21 @@
 
 `firesmith` is a thin wrapper over Firestore's SDKs, giving both one schema-typed interface: `firebase-admin` on the server and `firebase` on the web. Define a collection's schema once, in a validator you already use. Reads come back coerced and typed, and queries are typed to its fields. Underneath it's still plain Firestore, so you can reach for the SDK whenever you like.
 
+```mermaid
+flowchart LR
+  code["Your code"]
+  subgraph firesmith
+    types["Schema types"]
+    coerce["Value coercion"]
+    sentinels["Typed sentinels"]
+  end
+  sdk["firebase-admin<br/>or firebase"]
+  code <--> firesmith
+  firesmith <--> sdk
+  sdk <--> firestore[("Firestore")]
+  code -.->|.ref| sdk
+```
+
 - **Type-safe end to end.** Reads, writes, queries, listeners, transactions, batches and subcollections all take their types from your schema. Misspell a field or pass the wrong value type and it won't compile, rather than returning nothing at runtime.
 - **Typed query builder.** `where` and `orderBy` are checked against the schema, with typed `count` / `sum` / `average` aggregations and nested dotted paths.
 - **Constrained sentinels.** `increment`, `serverTimestamp`, `arrayUnion`, `arrayRemove` and `deleteField`, each limited to the field types it fits.
