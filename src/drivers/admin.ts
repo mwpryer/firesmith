@@ -249,6 +249,7 @@ export class AdminDriver implements Driver {
   ): Promise<T> {
     return this.#fs.runTransaction((transaction) => {
       const tx: TxDriver = {
+        ref: transaction,
         get: async (path) => {
           const snapshot = await transaction.get(this.#doc(path.segments));
           return {

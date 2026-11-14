@@ -4,9 +4,11 @@ import type {
   DocumentReference,
   Firestore,
   Query,
+  Transaction as WebTransaction,
 } from "firebase/firestore";
 
 import { Database } from "@/core/database";
+import type { Transaction } from "@/core/database";
 import type { CollectionHandle, DocumentHandle } from "@/core/handles";
 import type { OrderField, QueryBuilder } from "@/core/query";
 import type { InferOutput } from "@/core/types";
@@ -34,6 +36,10 @@ export function queryRef<
   O extends ReadonlyArray<OrderField<S>>,
 >(builder: QueryBuilder<S, O>): Query<InferOutput<S>> {
   return builder.ref as Query<InferOutput<S>>;
+}
+
+export function transactionRef(tx: Transaction): WebTransaction {
+  return tx.ref as WebTransaction;
 }
 
 export * from "@/index";

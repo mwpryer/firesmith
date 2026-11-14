@@ -6,9 +6,17 @@ import {
   updateDoc,
 } from "firebase/firestore";
 
-import { docRef as adminDocRef, queryRef as adminQueryRef } from "@/admin";
+import {
+  docRef as adminDocRef,
+  queryRef as adminQueryRef,
+  transactionRef as adminTransactionRef,
+} from "@/admin";
 import { documentId } from "@/index";
-import { docRef as webDocRef, queryRef as webQueryRef } from "@/web";
+import {
+  docRef as webDocRef,
+  queryRef as webQueryRef,
+  transactionRef as webTransactionRef,
+} from "@/web";
 import { adminKit, webKit } from "./emulator";
 import { posts, sampleUser, users } from "./support";
 
@@ -52,6 +60,21 @@ describe("admin", () => {
 
       expect((await query.get()).map((post) => post.likes)).toEqual([2, 1]);
     });
+
+    it("reads a query inside a transaction through the raw transaction", async () => {
+      const col = adminKit.db.collection(posts);
+      await col.set("p1", { title: "One", likes: 1 });
+
+      await adminKit.db.runTransaction(async (tx) => {
+        const snapshot = await adminTransactionRef(tx).get(
+          adminQueryRef(col.query()),
+        );
+        const post = snapshot.docs[0]!;
+        tx.collection(posts).update(post.id, { likes: post.data().likes + 1 });
+      });
+
+      expect((await col.get("p1"))!.likes).toBe(2);
+    });
   });
 });
 
@@ -93,6 +116,20 @@ describe("web", () => {
       await updateDoc(first.ref, { likes: 2 });
 
       expect((await query.get()).map((post) => post.likes)).toEqual([2, 1]);
+    });
+
+    it("reads a document inside a transaction through the raw transaction", async () => {
+      const col = webKit.db.collection(users);
+      await col.set("john", sampleUser({ age: 36 }));
+
+      await webKit.db.runTransaction(async (tx) => {
+        const john = await webTransactionRef(tx).get(
+          webDocRef(col.doc("john")),
+        );
+        tx.collection(users).update("john", { age: john.data()!.age + 1 });
+      });
+
+      expect((await col.get("john"))!.age).toBe(37);
     });
   });
 });

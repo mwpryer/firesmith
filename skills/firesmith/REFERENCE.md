@@ -217,6 +217,8 @@ await db.runTransaction(
 );
 ```
 
+For reads `firesmith` doesn't wrap, such as an admin query, see the escape hatch below.
+
 ## Batched writes
 
 Blind atomic writes without transaction retry/contention cost (and they work offline on web). Write-only: no `get`, no `add`.
@@ -289,6 +291,20 @@ const ref = docRef(db.collection(posts).doc("hello"));
 const unsub = onSnapshot(ref, (snap) => snap.data());
 ```
 
+A transaction has a `.ref` too: the SDK's own transaction, typed by `transactionRef(tx)`. Use it for a read `firesmith` doesn't wrap while the rest of the transaction stays typed. Admin can read a query inside a transaction, web only documents:
+
+```ts
+import { queryRef, transactionRef } from "firesmith/admin";
+
+await db.runTransaction(async (tx) => {
+  const drafts = db.collection(posts).where("likes", "==", 0);
+  const snap = await transactionRef(tx).get(queryRef(drafts));
+  for (const post of snap.docs) {
+    tx.collection(posts).delete(post.id);
+  }
+});
+```
+
 Firestore runs no converter for `updateDoc` / `ref.update(...)`, so a raw update through `.ref` skips coercion entirely (pass native values). The typed `.update(...)` and merge `set` still coerce.
 
 ## Errors
@@ -304,4 +320,4 @@ Firestore runs no converter for `updateDoc` / `ref.update(...)`, so a raw update
 - `deleteField()` compiles only on optional fields and only in `update` (and merge `set` field values).
 - `average()` is `null` over an empty match; `sum()` is `0`.
 - Cursor values are typed against the `orderBy` chain; pass a document to the `*Doc` cursors, never to `startAfter`.
-- Admin-only SDK features (`create`, `getAll`, `BulkWriter`, preconditions) are off the neutral surface; reach them via `.ref`.
+- Admin-only SDK features (`create`, `getAll`, `BulkWriter`, preconditions, query reads in a transaction) are off the neutral surface; reach them via `.ref`.

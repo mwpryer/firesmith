@@ -23,6 +23,11 @@ export class Transaction {
     this.#driver = driver;
   }
 
+  // Raw SDK transaction
+  get ref(): unknown {
+    return this.#tx.ref;
+  }
+
   collection<S extends StandardSchemaV1>(
     def: CollectionDef<S>,
   ): TxCollectionHandle<S> {

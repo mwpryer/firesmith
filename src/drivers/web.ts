@@ -288,6 +288,7 @@ export class WebDriver implements Driver {
       this.#fs,
       (transaction) => {
         const tx: TxDriver = {
+          ref: transaction,
           get: async (path) => {
             const snapshot = await transaction.get(this.#doc(path.segments));
             return {

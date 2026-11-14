@@ -90,6 +90,7 @@ export interface RawConverter {
 
 // Transaction writes buffer until commit, so only get awaits
 export interface TxDriver {
+  readonly ref: unknown;
   get(path: DocLocation): Promise<RawSnapshot>;
   set(path: DocLocation, data: DocumentData, options?: WriteOptions): void;
   update(path: DocLocation, data: DocumentData): void;

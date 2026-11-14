@@ -65,7 +65,7 @@ The schema is any [Standard Schema](https://standardschema.dev) validator (Zod, 
 6. **Dotted-path keys work in `update` only.** `update("o1", { "totals.items": increment(1) })` touches one nested field. Merge `set` accepts recursively partial nested objects with `merge: true` or `mergeFields`, including nested optional-field deletions. Whole-map `update` values must be complete replacements.
 7. **Transaction and batch writes take no `await`.** Reads in a transaction are async; writes return `void` and buffer until commit. Batches are write-only (no `get`, no `add`) and apply atomically on `.commit()`.
 8. **No runtime validation.** A document drifted from its schema comes back typed as valid. Where drift matters, run the schema on the result yourself.
-9. **SDK semantics win.** `firesmith` never wraps Firestore, network, or permission errors; `FiresmithError` covers only `firesmith`'s own failures. Anything `firesmith` does not wrap is reachable via `.ref` on collection, document and query handles. Transactions and batches have no escape hatch.
+9. **SDK semantics win.** `firesmith` never wraps Firestore, network, or permission errors; `FiresmithError` covers only `firesmith`'s own failures. Anything `firesmith` does not wrap is reachable via `.ref` on collection, document and query handles, and on a transaction. Batches have no escape hatch.
 
 ## Common operations
 

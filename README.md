@@ -88,7 +88,7 @@ Timestamps round-trip. Write a `Date`, read a `Date`, however deeply it sits in 
 
 The whole surface is typed against the schema: reads and writes, the query builder and its aggregations, listeners, transactions, subcollections and collection-group queries. A misspelt field is a compile error rather than an empty result.
 
-Underneath, it is still plain Firestore. `firesmith` is a thin wrapper, not an ORM, and collection, document and query handles expose `.ref`, so you can drop to the raw SDK outside transactions and batches.
+Underneath, it is still plain Firestore. `firesmith` is a thin wrapper, not an ORM, and collection, document and query handles and transactions expose `.ref`, so you can drop to the raw SDK anywhere but a batch.
 
 ## Install
 
@@ -361,6 +361,8 @@ Inside a transaction, reads are async (await them), but writes buffer synchronou
 
 Cap the retries with `runTransaction(fn, { maxAttempts })`; Firestore defaults to 5.
 
+For reads `firesmith` doesn't wrap, such as an admin query, see [Escape hatch](#escape-hatch).
+
 ## Batched writes
 
 `db.batch()` returns a batch whose collection handles expose write-only `set` / `update` / `delete`. Each buffers synchronously and takes no `await`; nothing is applied until `commit()`, which writes the whole batch atomically.
@@ -502,6 +504,20 @@ import { docRef } from "firesmith/web";
 const ref = docRef(db.collection(posts).doc("hello-world"));
 const unsub = onSnapshot(ref, (snap) => {
   const post = snap.data();
+});
+```
+
+A transaction has a `.ref` too: the SDK's own transaction, typed by `transactionRef(tx)`. Use it for a read `firesmith` doesn't wrap while the rest of the transaction stays typed. The admin SDK can read a query inside a transaction, the web SDK only documents:
+
+```ts
+import { queryRef, transactionRef } from "firesmith/admin";
+
+await db.runTransaction(async (tx) => {
+  const drafts = db.collection(posts).where("likes", "==", 0);
+  const snap = await transactionRef(tx).get(queryRef(drafts));
+  for (const post of snap.docs) {
+    tx.collection(posts).delete(post.id);
+  }
 });
 ```
 
