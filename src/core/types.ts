@@ -151,19 +151,20 @@ export type FieldPath<T> = T extends object
 
 // FieldPath narrowed to paths whose leaf value is a number, for sum()/average()
 export type NumericFieldPath<T> = {
-  [P in FieldPath<T>]: NonNullable<ValueAtPath<T, P>> extends number
-    ? P
-    : never;
+  [P in FieldPath<T>]: [NonNullable<ValueAtPath<T, P>>] extends [never]
+    ? never
+    : NonNullable<ValueAtPath<T, P>> extends number
+      ? P
+      : never;
 }[FieldPath<T>];
 
 // Resolve the value type at a dotted path produced by FieldPath
-export type ValueAtPath<
-  T,
-  P extends string,
-> = P extends `${infer Head}.${infer Rest}`
-  ? Head extends keyof T
-    ? ValueAtPath<NonNullable<T[Head]>, Rest>
-    : never
-  : P extends keyof T
-    ? T[P]
-    : never;
+export type ValueAtPath<T, P extends string> = T extends unknown
+  ? P extends `${infer Head}.${infer Rest}`
+    ? Head extends keyof T
+      ? ValueAtPath<NonNullable<T[Head]>, Rest>
+      : never
+    : P extends keyof T
+      ? T[P]
+      : never
+  : never;

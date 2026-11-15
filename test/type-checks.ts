@@ -316,6 +316,23 @@ function cursorTypes(): void {
   void byAgeThenId.startAfterDoc(post);
 }
 
+// A union schema queries any member's field, typed by the members declaring it
+function unionTypes(): void {
+  const shapes = collection(
+    "shapes",
+    z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("a"), label: z.string(), n: z.number() }),
+      z.object({ kind: z.literal("b"), title: z.string(), m: z.number() }),
+    ]),
+  );
+  const s = db.collection(shapes);
+  void s.where("label", "==", "x");
+  void s.orderBy("label").startAt("x");
+  void s.sum("n");
+  // @ts-expect-error sum requires a numeric field, not a member's string
+  void s.sum("label");
+}
+
 // Typed refs carry the write shape so SDK writes need no id or meta
 declare const adminFirestore: AdminFirestore;
 
@@ -340,4 +357,5 @@ void writeTypes;
 void schemaTypes;
 void readonlyArrayTypes;
 void cursorTypes;
+void unionTypes;
 void refTypes;
