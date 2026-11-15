@@ -26,6 +26,17 @@ for (const kit of allKits) {
         expect(endBefore.map((u) => u.name)).toEqual(["A"]);
       });
 
+      it("filters with a where added after a cursor", async () => {
+        const docs = await kit.db
+          .collection(users)
+          .orderBy("age")
+          .startAt(30)
+          .where("name", "in", ["A", "C"])
+          .get();
+
+        expect(docs.map((u) => u.name)).toEqual(["C"]);
+      });
+
       it("paginates with startAfter from a fetched value", async () => {
         const byAge = kit.db.collection(users).orderBy("age");
         const first = await byAge.limit(1).get();

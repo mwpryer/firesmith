@@ -105,7 +105,12 @@ export class AdminDriver implements Driver {
       source.kind === "collection"
         ? this.#collection(source.segments)
         : this.#fs.collectionGroup(source.collectionId);
-    for (const constraint of constraints) {
+    // Admin rejects where() after a cursor, filters are ANDed so apply them first
+    const filtersFirst = [
+      ...constraints.filter((constraint) => constraint.type === "where"),
+      ...constraints.filter((constraint) => constraint.type !== "where"),
+    ];
+    for (const constraint of filtersFirst) {
       query = this.#applyConstraint(query, constraint);
     }
     return query;
