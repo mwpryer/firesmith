@@ -26,11 +26,9 @@ export interface RawSnapshot {
   readonly data: DocumentData;
 }
 
-export interface WriteOptions {
-  readonly merge?: boolean;
-  // Field paths to merge, exclusive with merge
-  readonly mergeFields?: readonly string[];
-}
+export type WriteOptions =
+  | { readonly merge: true; readonly mergeFields?: never }
+  | { readonly mergeFields: readonly string[]; readonly merge?: never };
 
 export interface TransactionOptions {
   readonly maxAttempts?: number;

@@ -116,8 +116,8 @@ export type UpdatePaths<T> = {
 
 // Merge set options, two exclusive modes mirroring Firestore SetOptions
 export type MergeOptions<T> =
-  | { merge: true }
-  | { mergeFields: ReadonlyArray<FieldPath<T>> };
+  | { merge: true; mergeFields?: never }
+  | { mergeFields: ReadonlyArray<FieldPath<T>>; merge?: never };
 
 export type WhereFilterOp =
   | "=="

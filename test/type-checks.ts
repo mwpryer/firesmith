@@ -151,6 +151,8 @@ function writeTypes(): void {
   } satisfies MergeOptions<z.output<typeof places.schema>>;
   void p.set("p1", patch, fields);
   void p.doc("p1").set(patch, { merge: true });
+  // @ts-expect-error merge and mergeFields are exclusive modes
+  void p.set("p1", patch, { merge: true, mergeFields: ["address.city"] });
   void p.doc("p1").set(patch, fields);
   const batch = db.batch().collection(places);
   batch.set("p1", patch, { merge: true });
