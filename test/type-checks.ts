@@ -325,6 +325,7 @@ function unionTypes(): void {
     z.discriminatedUnion("kind", [
       z.object({ kind: z.literal("a"), label: z.string(), n: z.number() }),
       z.object({ kind: z.literal("b"), title: z.string(), m: z.number() }),
+      z.object({ kind: z.literal("c"), m: z.string(), empty: z.null() }),
     ]),
   );
   const s = db.collection(shapes);
@@ -333,6 +334,10 @@ function unionTypes(): void {
   void s.sum("n");
   // @ts-expect-error sum requires a numeric field, not a member's string
   void s.sum("label");
+  // @ts-expect-error sum requires the field numeric in every member declaring it
+  void s.sum("m");
+  // @ts-expect-error average requires a numeric field, not a null-only one
+  void s.average("empty");
 }
 
 // Typed refs carry the write shape so SDK writes need no id or meta

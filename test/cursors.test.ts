@@ -76,7 +76,7 @@ for (const kit of allKits) {
         ).toEqual([]);
       });
 
-      it("starts after a returned document, tie-broken by its id", async () => {
+      it("bounds by a returned document, tie-broken by its id", async () => {
         const col = kit.db.collection(places);
         await col.set("a", samplePlace());
         await col.set("b", samplePlace());
@@ -88,11 +88,16 @@ for (const kit of allKits) {
           },
         });
         const byVisits = col.orderBy("stats.visits").orderBy(documentId());
-        const first = (await byVisits.limit(1).get())[0]!;
+        const b = (await col.get("b"))!;
 
-        const next = await byVisits.startAfterDoc(first).get();
-
-        expect(next.map((place) => place.id)).toEqual(["b", "c"]);
+        const startAt = await byVisits.startAtDoc(b).get();
+        expect(startAt.map((place) => place.id)).toEqual(["b", "c"]);
+        const startAfter = await byVisits.startAfterDoc(b).get();
+        expect(startAfter.map((place) => place.id)).toEqual(["c"]);
+        const endAt = await byVisits.endAtDoc(b).get();
+        expect(endAt.map((place) => place.id)).toEqual(["a", "b"]);
+        const endBefore = await byVisits.endBeforeDoc(b).get();
+        expect(endBefore.map((place) => place.id)).toEqual(["a"]);
       });
 
       it("starts after a returned date with sub-millisecond precision", async () => {

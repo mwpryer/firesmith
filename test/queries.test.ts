@@ -18,7 +18,7 @@ for (const kit of allKits) {
           .collection(users)
           .where("age", ">=", 30)
           .orderBy("age", "desc")
-          .get();
+          .list();
         expect(docs.map((u) => u.name)).toEqual(["C", "B"]);
       });
 
@@ -54,6 +54,7 @@ for (const kit of allKits) {
 
       it("counts, sums, and averages, whole collection and filtered", async () => {
         const col = kit.db.collection(users);
+        expect(await col.count()).toBe(3);
         expect(await col.where("age", ">=", 30).count()).toBe(2);
         expect(await col.sum("age")).toBe(90);
         expect(await col.average("age")).toBe(30);

@@ -33,7 +33,7 @@ for (const kit of allKits) {
             .doc("john")
             .collection(posts)
             .doc("p1")
-            .set({ ...post!, likes: post!.likes + 1 });
+            .update({ likes: post!.likes + 1 });
 
           return [john!.meta.path, post!.meta.path];
         });

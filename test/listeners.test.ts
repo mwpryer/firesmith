@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 
-import { serverTimestamp } from "@/index";
+import { documentId, serverTimestamp } from "@/index";
 import { allKits } from "./emulator";
 import { sampleUser, settle, users, waitUntil } from "./support";
 
@@ -102,18 +102,44 @@ for (const kit of allKits) {
         expect(seen[0]).toBe("John Doe");
       });
 
+      it("passes a listener error to the observer's error handler", async () => {
+        const col = kit.db.collection(users);
+        const errors: string[] = [];
+        const observer = {
+          next: () => {},
+          error: (error: unknown) => errors.push(String(error)),
+        };
+        // Backend rejects reserved __*__ ids after the listen starts
+        const unsubDoc = col.doc("__john__").onSnapshot(observer);
+        const unsubQuery = col
+          .where(documentId(), "==", "__john__")
+          .onSnapshot(observer);
+        await waitUntil(() => errors.length >= 2);
+        unsubDoc();
+        unsubQuery();
+        const reserved =
+          'Resource id "__john__" is invalid because it is reserved';
+        expect(errors).toEqual([
+          expect.stringContaining(reserved),
+          expect.stringContaining(reserved),
+        ]);
+      });
+
       it("emits a pending serverTimestamp as a Date", async () => {
         const col = kit.db.collection(users);
         await col.set("john", sampleUser());
         const seen: Date[] = [];
-        const unsub = col
+        const unsubDoc = col
           .doc("john")
           .onSnapshot((doc) => seen.push(doc!.createdAt));
-        await waitUntil(() => seen.length >= 1);
+        const unsubQuery = col.onSnapshot((docs) =>
+          seen.push(docs[0]!.createdAt),
+        );
+        await waitUntil(() => seen.length >= 2);
         await col.update("john", { createdAt: serverTimestamp() });
-        await settle();
-        unsub();
-        expect(seen.length).toBeGreaterThan(1);
+        await waitUntil(() => seen.length >= 4);
+        unsubDoc();
+        unsubQuery();
         for (const createdAt of seen) {
           expect(createdAt).toBeInstanceOf(Date);
         }

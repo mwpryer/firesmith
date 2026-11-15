@@ -14,15 +14,6 @@ for (const kit of allKits) {
     describe("reads and writes", () => {
       beforeEach(() => kit.clear());
 
-      it("round-trips a document with its id and meta merged in", async () => {
-        const col = kit.db.collection(users);
-        await col.set("john", sampleUser());
-        const john = await col.get("john");
-        expect(john!.id).toBe("john");
-        expect(john!.meta).toEqual({ path: "users/john" });
-        expect(john!.name).toBe("John Doe");
-      });
-
       it("reads id and meta from the location over stored fields", async () => {
         const col = kit.db.collection(users);
         const fields = {
@@ -39,6 +30,7 @@ for (const kit of allKits) {
 
         expect(john!.id).toBe("john");
         expect(john!.meta).toEqual({ path: "users/john" });
+        expect(john!.name).toBe("John Doe");
       });
 
       it("strips id and meta from writes but stores a path data field", async () => {
