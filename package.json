@@ -17,15 +17,15 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "default": "./dist/index.js"
     },
     "./admin": {
       "types": "./dist/admin.d.ts",
-      "import": "./dist/admin.js"
+      "default": "./dist/admin.js"
     },
     "./web": {
       "types": "./dist/web.d.ts",
-      "import": "./dist/web.js"
+      "default": "./dist/web.js"
     }
   },
   "scripts": {
