@@ -8,6 +8,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sdks: [lockfile, oldest]
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -17,5 +21,7 @@ jobs:
           distribution: temurin
           java-version: "21"
       - run: bun install --frozen-lockfile
+      - if: matrix.sdks == 'oldest'
+        run: bun add --dev firebase@11 firebase-admin@12
       - run: bun run check
       - run: bun run build
