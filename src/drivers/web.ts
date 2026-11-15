@@ -34,6 +34,7 @@ import {
   type CollectionReference,
   type DocumentData as WebDocumentData,
   type DocumentReference,
+  type DocumentSnapshot,
   type FieldPath as WebFieldPath,
   type FieldValue as WebFieldValue,
   type Firestore,
@@ -48,9 +49,7 @@ import {
 import { toNative } from "@/core/coerce";
 import type {
   BatchDriver,
-  CollectionLocation,
   Constraint,
-  DocLocation,
   DocObserver,
   DocumentData,
   Driver,
@@ -117,14 +116,15 @@ export class WebDriver implements Driver {
     return values.map((value) => toNative(value, this.native));
   }
 
-  #setOptions(options?: WriteOptions): SetOptions | undefined {
+  #setOptions(options?: WriteOptions): SetOptions {
     if (options?.mergeFields) {
       return { mergeFields: [...options.mergeFields] };
     }
     if (options?.merge) {
       return { merge: true };
     }
-    return undefined;
+
+    return {};
   }
 
   #doc(segments: readonly string[]): DocumentReference {
@@ -140,6 +140,7 @@ export class WebDriver implements Driver {
       source.kind === "collection"
         ? this.#collection(source.segments)
         : webCollectionGroup(this.#fs, source.collectionId);
+
     return webQuery(base, ...constraints.map((c) => this.#constraint(c)));
   }
 
@@ -166,39 +167,36 @@ export class WebDriver implements Driver {
     }
   }
 
-  async getDoc(path: DocLocation): Promise<RawSnapshot> {
-    const snapshot = await webGetDoc(this.#doc(path.segments));
-    return {
-      id: snapshot.id,
-      path: snapshot.ref.path,
-      exists: snapshot.exists(),
-      data: snapshot.data(SNAPSHOT_OPTIONS),
-    };
+  async getDoc(segments: readonly string[]): Promise<RawSnapshot | null> {
+    return rawSnapshot(await webGetDoc(this.#doc(segments)));
   }
 
   async setDoc(
-    path: DocLocation,
+    segments: readonly string[],
     data: DocumentData,
     options?: WriteOptions,
   ): Promise<void> {
-    const ref = this.#doc(path.segments);
-    const setOptions = this.#setOptions(options);
-    await (setOptions
-      ? webSetDoc(ref, data, setOptions)
-      : webSetDoc(ref, data));
+    await webSetDoc(this.#doc(segments), data, this.#setOptions(options));
   }
 
-  async updateDoc(path: DocLocation, data: DocumentData): Promise<void> {
-    await webUpdateDoc(this.#doc(path.segments), data);
+  async updateDoc(
+    segments: readonly string[],
+    data: DocumentData,
+  ): Promise<void> {
+    await webUpdateDoc(this.#doc(segments), data);
   }
 
-  async addDoc(path: CollectionLocation, data: DocumentData): Promise<string> {
-    const ref = await webAddDoc(this.#collection(path.segments), data);
+  async addDoc(
+    segments: readonly string[],
+    data: DocumentData,
+  ): Promise<string> {
+    const ref = await webAddDoc(this.#collection(segments), data);
+
     return ref.id;
   }
 
-  async deleteDoc(path: DocLocation): Promise<void> {
-    await webDeleteDoc(this.#doc(path.segments));
+  async deleteDoc(segments: readonly string[]): Promise<void> {
+    await webDeleteDoc(this.#doc(segments));
   }
 
   async runQuery(
@@ -206,10 +204,10 @@ export class WebDriver implements Driver {
     constraints: readonly Constraint[],
   ): Promise<RawSnapshot[]> {
     const snapshot = await getDocs(this.#query(source, constraints));
+
     return snapshot.docs.map((doc) => ({
       id: doc.id,
       path: doc.ref.path,
-      exists: true,
       data: doc.data(SNAPSHOT_OPTIONS),
     }));
   }
@@ -219,6 +217,7 @@ export class WebDriver implements Driver {
     constraints: readonly Constraint[],
   ): Promise<number> {
     const snapshot = await getCountFromServer(this.#query(source, constraints));
+
     return snapshot.data().count;
   }
 
@@ -231,6 +230,7 @@ export class WebDriver implements Driver {
       this.#query(source, constraints),
       { value: webSum(field) },
     );
+
     return snapshot.data().value;
   }
 
@@ -243,19 +243,17 @@ export class WebDriver implements Driver {
       this.#query(source, constraints),
       { value: webAverage(field) },
     );
+
     return snapshot.data().value;
   }
 
-  onSnapshotDoc(path: DocLocation, observer: DocObserver): Unsubscribe {
+  onSnapshotDoc(
+    segments: readonly string[],
+    observer: DocObserver,
+  ): Unsubscribe {
     return webOnSnapshot(
-      this.#doc(path.segments),
-      (snapshot) =>
-        observer.next({
-          id: snapshot.id,
-          path: snapshot.ref.path,
-          exists: snapshot.exists(),
-          data: snapshot.data(SNAPSHOT_OPTIONS),
-        }),
+      this.#doc(segments),
+      (snapshot) => observer.next(rawSnapshot(snapshot)),
       observer.error?.bind(observer),
     );
   }
@@ -272,7 +270,6 @@ export class WebDriver implements Driver {
           snapshot.docs.map((doc) => ({
             id: doc.id,
             path: doc.ref.path,
-            exists: true,
             data: doc.data(SNAPSHOT_OPTIONS),
           })),
         ),
@@ -288,32 +285,25 @@ export class WebDriver implements Driver {
       this.#fs,
       (transaction) => {
         const tx: TxDriver = {
+          native: this.native,
           ref: transaction,
-          get: async (path) => {
-            const snapshot = await transaction.get(this.#doc(path.segments));
-            return {
-              id: snapshot.id,
-              path: snapshot.ref.path,
-              exists: snapshot.exists(),
-              data: snapshot.data(SNAPSHOT_OPTIONS),
-            };
+          get: async (segments) =>
+            rawSnapshot(await transaction.get(this.#doc(segments))),
+          set: (segments, data, options) => {
+            transaction.set(
+              this.#doc(segments),
+              data,
+              this.#setOptions(options),
+            );
           },
-          set: (path, data, options) => {
-            const ref = this.#doc(path.segments);
-            const setOptions = this.#setOptions(options);
-            if (setOptions) {
-              transaction.set(ref, data, setOptions);
-            } else {
-              transaction.set(ref, data);
-            }
+          update: (segments, data) => {
+            transaction.update(this.#doc(segments), data);
           },
-          update: (path, data) => {
-            transaction.update(this.#doc(path.segments), data);
-          },
-          delete: (path) => {
-            transaction.delete(this.#doc(path.segments));
+          delete: (segments) => {
+            transaction.delete(this.#doc(segments));
           },
         };
+
         return fn(tx);
       },
       options,
@@ -322,21 +312,17 @@ export class WebDriver implements Driver {
 
   batch(): BatchDriver {
     const batch = webWriteBatch(this.#fs);
+
     return {
-      set: (path, data, options) => {
-        const ref = this.#doc(path.segments);
-        const setOptions = this.#setOptions(options);
-        if (setOptions) {
-          batch.set(ref, data, setOptions);
-        } else {
-          batch.set(ref, data);
-        }
+      native: this.native,
+      set: (segments, data, options) => {
+        batch.set(this.#doc(segments), data, this.#setOptions(options));
       },
-      update: (path, data) => {
-        batch.update(this.#doc(path.segments), data);
+      update: (segments, data) => {
+        batch.update(this.#doc(segments), data);
       },
-      delete: (path) => {
-        batch.delete(this.#doc(path.segments));
+      delete: (segments) => {
+        batch.delete(this.#doc(segments));
       },
       commit: async () => {
         await batch.commit();
@@ -344,14 +330,12 @@ export class WebDriver implements Driver {
     };
   }
 
-  docRef(path: DocLocation, converter: RawConverter): unknown {
-    return this.#doc(path.segments).withConverter(adaptConverter(converter));
+  docRef(segments: readonly string[], converter: RawConverter): unknown {
+    return this.#doc(segments).withConverter(adaptConverter(converter));
   }
 
-  collectionRef(path: CollectionLocation, converter: RawConverter): unknown {
-    return this.#collection(path.segments).withConverter(
-      adaptConverter(converter),
-    );
+  collectionRef(segments: readonly string[], converter: RawConverter): unknown {
+    return this.#collection(segments).withConverter(adaptConverter(converter));
   }
 
   queryRef(
@@ -370,6 +354,18 @@ function fieldRef(field: FieldRef): string | WebFieldPath {
   return typeof field === "string" ? field : webDocumentId();
 }
 
+function rawSnapshot(snapshot: DocumentSnapshot): RawSnapshot | null {
+  const data = snapshot.data(SNAPSHOT_OPTIONS);
+
+  return data === undefined
+    ? null
+    : {
+        id: snapshot.id,
+        path: snapshot.ref.path,
+        data,
+      };
+}
+
 function adaptConverter(
   converter: RawConverter,
 ): FirestoreDataConverter<DocumentData, WebDocumentData> {
@@ -379,10 +375,12 @@ function adaptConverter(
       snapshot: QueryDocumentSnapshot<WebDocumentData>,
       options: SnapshotOptions,
     ) =>
-      converter.fromNative(
-        snapshot.id,
-        snapshot.ref.path,
-        snapshot.data(options.serverTimestamps ? options : SNAPSHOT_OPTIONS),
-      ) as DocumentData,
+      converter.fromNative({
+        id: snapshot.id,
+        path: snapshot.ref.path,
+        data: snapshot.data(
+          options.serverTimestamps ? options : SNAPSHOT_OPTIONS,
+        ),
+      }),
   };
 }

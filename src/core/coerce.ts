@@ -20,6 +20,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
     return false;
   }
   const proto = Object.getPrototypeOf(value);
+
   return proto === Object.prototype || proto === null;
 }
 
@@ -29,6 +30,7 @@ function isBytesLike(value: unknown): value is { toUint8Array(): Uint8Array } {
     return false;
   }
   const candidate = value as Record<string, unknown>;
+
   return (
     typeof candidate.toUint8Array === "function" &&
     typeof candidate.toBase64 === "function"
@@ -38,7 +40,7 @@ function isBytesLike(value: unknown): value is { toUint8Array(): Uint8Array } {
 // Read path, Firestore storage values to neutral domain values
 function toNeutral(
   value: unknown,
-  rawPaths?: ReadonlySet<string>,
+  raw: ReadonlySet<string>,
   path = "",
 ): unknown {
   // Primitives never coerce, skip object guards on scalar fields
@@ -46,7 +48,7 @@ function toNeutral(
     return value;
   }
   // Listed path stays the raw SDK value, whole subtree, no recursion
-  if (rawPaths?.has(path)) {
+  if (raw.has(path)) {
     return value;
   }
   if (isTimestampLike(value)) {
@@ -67,16 +69,17 @@ function toNeutral(
     return value.toUint8Array();
   }
   if (Array.isArray(value)) {
-    return value.map((item) => toNeutral(item, rawPaths, path));
+    return value.map((item) => toNeutral(item, raw, path));
   }
   if (isPlainObject(value)) {
     const out: Record<string, unknown> = {};
     for (const key in value) {
-      const childPath = rawPaths ? (path ? `${path}.${key}` : key) : "";
-      out[key] = toNeutral(value[key], rawPaths, childPath);
+      out[key] = toNeutral(value[key], raw, path ? `${path}.${key}` : key);
     }
+
     return out;
   }
+
   return value;
 }
 
@@ -114,17 +117,11 @@ export function toNative(value: unknown, native: NativeAdapter): unknown {
     for (const key in value) {
       out[key] = toNative(value[key], native);
     }
+
     return out;
   }
-  return value;
-}
 
-export function toNeutralData(
-  data: DocumentData,
-  raw?: readonly string[],
-): DocumentData {
-  const rawPaths = raw && raw.length > 0 ? new Set(raw) : undefined;
-  return toNeutral(data, rawPaths) as DocumentData;
+  return value;
 }
 
 export function toNativeData(
@@ -145,11 +142,8 @@ export function toNativeData(
 export function readSnapshot<S extends StandardSchemaV1>(
   def: CollectionDef<S>,
   snapshot: RawSnapshot,
-): Doc<S> | null {
-  if (!snapshot.exists || snapshot.data === undefined) {
-    return null;
-  }
-  const coerced = toNeutralData(snapshot.data, def.raw);
+): Doc<S> {
+  const coerced = toNeutral(snapshot.data, def.raw);
 
   return {
     ...(coerced as object),
@@ -164,17 +158,7 @@ export function makeConverter<S extends StandardSchemaV1>(
   native: NativeAdapter,
 ): RawConverter {
   return {
-    toNative(data: DocumentData): DocumentData {
-      return toNativeData(data, native);
-    },
-    fromNative(id: string, path: string, data: DocumentData): unknown {
-      const coerced = toNeutralData(data, def.raw);
-
-      return {
-        ...(coerced as object),
-        id,
-        meta: { path },
-      };
-    },
+    toNative: (data) => toNativeData(data, native),
+    fromNative: (snapshot) => readSnapshot(def, snapshot),
   };
 }

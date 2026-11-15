@@ -29,7 +29,7 @@ import { collection, increment } from "firesmith";
 // or "firesmith/web"
 import { createDatabase } from "firesmith/admin";
 import { getFirestore } from "firebase-admin/firestore";
-import { z } from "zod";
+import * as z from "zod";
 
 // Plain, unbound definition, define once in a shared module importing only "firesmith"
 const posts = collection(

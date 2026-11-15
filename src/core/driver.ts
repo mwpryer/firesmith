@@ -6,34 +6,9 @@ export type DocumentData = Record<string, unknown>;
 // Field for where()/orderBy(), dotted path or document id reference
 export type FieldRef = string | DocumentIdRef;
 
-// Document location, even-length segments like [collection, id, ...]
-export interface DocLocation {
-  readonly kind: "doc";
-  readonly segments: readonly string[];
-}
-
-export function docLocation(segments: readonly string[]): DocLocation {
-  return { kind: "doc", segments };
-}
-
-// Collection location, odd-length segments [collection, id, ..., collection]
-export interface CollectionLocation {
-  readonly kind: "collection";
-  readonly segments: readonly string[];
-}
-
-export function collectionLocation(
-  segments: readonly string[],
-): CollectionLocation {
-  return { kind: "collection", segments };
-}
-
-export interface CollectionGroupLocation {
-  readonly kind: "collectionGroup";
-  readonly collectionId: string;
-}
-
-export type QuerySource = CollectionLocation | CollectionGroupLocation;
+export type QuerySource =
+  | { readonly kind: "collection"; readonly segments: readonly string[] }
+  | { readonly kind: "collectionGroup"; readonly collectionId: string };
 
 // Neutral query AST each driver translates to its SDK
 export type Constraint =
@@ -48,8 +23,7 @@ export type Constraint =
 export interface RawSnapshot {
   readonly id: string;
   readonly path: string;
-  readonly exists: boolean;
-  readonly data: DocumentData | undefined;
+  readonly data: DocumentData;
 }
 
 export interface WriteOptions {
@@ -66,7 +40,7 @@ export type Unsubscribe = () => void;
 
 // Absent error handler must reach the SDK as absent, its default handling wins
 export interface DocObserver {
-  next(snapshot: RawSnapshot): void;
+  next(snapshot: RawSnapshot | null): void;
   error?(error: unknown): void;
 }
 
@@ -85,38 +59,48 @@ export interface NativeAdapter {
 
 export interface RawConverter {
   toNative(data: DocumentData): DocumentData;
-  fromNative(id: string, path: string, data: DocumentData): unknown;
+  fromNative(snapshot: RawSnapshot): DocumentData;
 }
 
 // Transaction writes buffer until commit, so only get awaits
 export interface TxDriver {
+  readonly native: NativeAdapter;
   readonly ref: unknown;
-  get(path: DocLocation): Promise<RawSnapshot>;
-  set(path: DocLocation, data: DocumentData, options?: WriteOptions): void;
-  update(path: DocLocation, data: DocumentData): void;
-  delete(path: DocLocation): void;
+  get(segments: readonly string[]): Promise<RawSnapshot | null>;
+  set(
+    segments: readonly string[],
+    data: DocumentData,
+    options?: WriteOptions,
+  ): void;
+  update(segments: readonly string[], data: DocumentData): void;
+  delete(segments: readonly string[]): void;
 }
 
 // Blind batched writes, buffer synchronously until an explicit commit
 export interface BatchDriver {
-  set(path: DocLocation, data: DocumentData, options?: WriteOptions): void;
-  update(path: DocLocation, data: DocumentData): void;
-  delete(path: DocLocation): void;
+  readonly native: NativeAdapter;
+  set(
+    segments: readonly string[],
+    data: DocumentData,
+    options?: WriteOptions,
+  ): void;
+  update(segments: readonly string[], data: DocumentData): void;
+  delete(segments: readonly string[]): void;
   commit(): Promise<void>;
 }
 
 export interface Driver {
   readonly native: NativeAdapter;
 
-  getDoc(path: DocLocation): Promise<RawSnapshot>;
+  getDoc(segments: readonly string[]): Promise<RawSnapshot | null>;
   setDoc(
-    path: DocLocation,
+    segments: readonly string[],
     data: DocumentData,
     options?: WriteOptions,
   ): Promise<void>;
-  updateDoc(path: DocLocation, data: DocumentData): Promise<void>;
-  addDoc(path: CollectionLocation, data: DocumentData): Promise<string>;
-  deleteDoc(path: DocLocation): Promise<void>;
+  updateDoc(segments: readonly string[], data: DocumentData): Promise<void>;
+  addDoc(segments: readonly string[], data: DocumentData): Promise<string>;
+  deleteDoc(segments: readonly string[]): Promise<void>;
 
   runQuery(
     source: QuerySource,
@@ -138,7 +122,10 @@ export interface Driver {
     field: string,
   ): Promise<number | null>;
 
-  onSnapshotDoc(path: DocLocation, observer: DocObserver): Unsubscribe;
+  onSnapshotDoc(
+    segments: readonly string[],
+    observer: DocObserver,
+  ): Unsubscribe;
   onSnapshotQuery(
     source: QuerySource,
     constraints: readonly Constraint[],
@@ -152,8 +139,8 @@ export interface Driver {
 
   batch(): BatchDriver;
 
-  docRef(path: DocLocation, converter: RawConverter): unknown;
-  collectionRef(path: CollectionLocation, converter: RawConverter): unknown;
+  docRef(segments: readonly string[], converter: RawConverter): unknown;
+  collectionRef(segments: readonly string[], converter: RawConverter): unknown;
   queryRef(
     source: QuerySource,
     constraints: readonly Constraint[],

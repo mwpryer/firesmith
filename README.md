@@ -117,7 +117,7 @@ Define a collection, connect a database, then read, write and query typed docume
 import { collection, increment } from "firesmith";
 import { createDatabase } from "firesmith/admin";
 import { getFirestore } from "firebase-admin/firestore";
-import { z } from "zod";
+import * as z from "zod";
 
 const posts = collection(
   "posts",
@@ -159,7 +159,7 @@ The schema should describe a document Firestore can store: an object of fields, 
 
 ```ts
 import { collection } from "firesmith";
-import { z } from "zod";
+import * as z from "zod";
 
 export const posts = collection(
   "posts",
@@ -423,7 +423,7 @@ If a field needs full nanosecond precision, keep it raw with the `raw` option (a
 
 ```ts
 import { collection, isTimestampLike, type Timestamp } from "firesmith";
-import { z } from "zod";
+import * as z from "zod";
 
 const events = collection(
   "events",
@@ -438,11 +438,11 @@ const events = collection(
 
 ## Bytes
 
-Bytes are the binary analogue of timestamps. Schemas speak `Uint8Array`, the JS-native binary type, with no SDK import. The boundary coerces it to the SDK bytes type on write (the web `Bytes` class, an admin `Buffer`) and back to a plain `Uint8Array` on read, deeply, the same as `Date` and `Timestamp`. Lossless, so no precision caveat.
+Bytes are the binary analogue of timestamps. Schemas speak `Uint8Array`, the JS-native binary type, with no SDK import. The boundary coerces it to the SDK bytes type on write (the web `Bytes` class; admin takes the `Uint8Array` as-is) and back to a plain `Uint8Array` on read, deeply, the same as `Date` and `Timestamp`. Lossless, so no precision caveat.
 
 ```ts
 import { collection } from "firesmith";
-import { z } from "zod";
+import * as z from "zod";
 
 const files = collection("files", z.object({ blob: z.custom<Uint8Array>() }));
 
@@ -458,7 +458,7 @@ A schema can name Firestore's other value types without importing either SDK. `f
 
 ```ts
 import { collection, type GeoPoint } from "firesmith";
-import { z } from "zod";
+import * as z from "zod";
 
 const places = collection(
   "places",
@@ -476,9 +476,9 @@ const places = collection(
 
 ## Escape hatch
 
-Every handle exposes a `.ref` with the converter attached, so raw Firestore calls that `firesmith` doesn't wrap still run through it where the SDK invokes it. The converter coerces both directions: a read coerces stored values to neutral types, a write coerces `Date` to `Timestamp` and translates sentinels.
+Collection, document and query handles expose a `.ref` with the converter attached, so raw Firestore calls that `firesmith` doesn't wrap still run through it where the SDK invokes it. The converter coerces both directions: a read coerces stored values to neutral types, a write coerces `Date` to `Timestamp` and translates sentinels.
 
-`.ref` is typed `unknown` so the neutral core imports no SDK. Each entrypoint ships typed helpers, `docRef` / `collectionRef` / `queryRef`, that hand back the SDK ref typed to your schema's fields, without `id` or `meta`, so you don't cast by hand.
+`.ref` is typed `unknown` so the neutral core imports no SDK. Each entrypoint ships typed helpers, `docRef` / `collectionRef` / `queryRef`, that hand back the SDK ref typed to your schema's fields, so you don't cast by hand. The type leaves out `id` and `meta`, but a read through the converter still adds both at runtime.
 
 ```ts
 import { docRef } from "firesmith/admin";
@@ -490,7 +490,7 @@ await ref.set({ title: "Hello", likes: 0, createdAt: new Date() });
 
 // raw SDK call firesmith does not wrap, data() is still coerced
 const unsub = ref.onSnapshot((snap) => {
-  // post: InferOutput<typeof posts.schema> | undefined, snap.id is the id
+  // post: InferOutput<typeof posts.schema> | undefined, plus untyped id and meta
   const post = snap.data();
 });
 ```

@@ -12,7 +12,10 @@ for (const kit of allKits) {
         const col = kit.db.collection(users);
         const johnPosts = col.doc("john").collection(posts);
         await col.set("john", sampleUser({ age: 36 }));
-        await johnPosts.set("p1", { title: "Draft", likes: 0 });
+        await johnPosts.set("p1", {
+          title: "Draft",
+          likes: 0,
+        });
 
         // All reads precede all writes
         const paths = await kit.db.runTransaction(async (tx) => {
@@ -55,6 +58,17 @@ for (const kit of allKits) {
         const john = await col.get("john");
         expect(john!.age).toBe(37);
         expect(john!.name).toBe("John Doe");
+      });
+
+      it("deletes a document and reads a missing one as null", async () => {
+        await kit.db.collection(users).set("john", sampleUser());
+        await kit.db.runTransaction(async (tx) => {
+          tx.collection(users).delete("john");
+        });
+        const john = await kit.db.runTransaction((tx) =>
+          tx.collection(users).get("john"),
+        );
+        expect(john).toBeNull();
       });
 
       it("rejects a read issued after a write", async () => {

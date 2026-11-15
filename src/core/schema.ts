@@ -22,8 +22,9 @@ export function collection<S extends StandardSchemaV1>(
       : never),
   options?: CollectionOptions<S>,
 ): CollectionDef<S> {
-  if (options?.raw && options.raw.length > 0) {
-    return { name, schema, raw: options.raw };
-  }
-  return { name, schema };
+  return {
+    name,
+    schema,
+    raw: new Set(options?.raw),
+  };
 }

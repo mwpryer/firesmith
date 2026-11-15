@@ -1,15 +1,13 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { makeConverter, readSnapshot, toNativeData } from "@/core/coerce";
-import {
-  type BatchDriver,
-  collectionLocation,
-  docLocation,
-  type Driver,
-  type FieldRef,
-  type TxDriver,
-  type Unsubscribe,
-  type WriteOptions,
+import type {
+  BatchDriver,
+  Driver,
+  FieldRef,
+  TxDriver,
+  Unsubscribe,
+  WriteOptions,
 } from "@/core/driver";
 import type { DocumentIdRef } from "@/core/firestore";
 import {
@@ -72,7 +70,8 @@ export class CollectionHandle<S extends StandardSchemaV1> {
 
   async add(data: WithFieldValue<InferOutput<S>>): Promise<string> {
     const native = toNativeData(data, this.#driver.native);
-    return this.#driver.addDoc(collectionLocation(this.#segments), native);
+
+    return this.#driver.addDoc(this.#segments, native);
   }
 
   delete(id: string): Promise<void> {
@@ -83,7 +82,10 @@ export class CollectionHandle<S extends StandardSchemaV1> {
     return new QueryBuilder({
       driver: this.#driver,
       def: this.#def,
-      source: collectionLocation(this.#segments),
+      source: {
+        kind: "collection",
+        segments: this.#segments,
+      },
     });
   }
 
@@ -152,7 +154,7 @@ export class CollectionHandle<S extends StandardSchemaV1> {
   // Raw ref with the coercing converter attached
   get ref(): unknown {
     return this.#driver.collectionRef(
-      collectionLocation(this.#segments),
+      this.#segments,
       makeConverter(this.#def, this.#driver.native),
     );
   }
@@ -160,27 +162,21 @@ export class CollectionHandle<S extends StandardSchemaV1> {
 
 export class TxCollectionHandle<S extends StandardSchemaV1> {
   readonly #tx: TxDriver;
-  readonly #driver: Driver;
   readonly #def: CollectionDef<S>;
   readonly #segments: readonly string[];
 
   constructor(
     tx: TxDriver,
-    driver: Driver,
     def: CollectionDef<S>,
     segments: readonly string[],
   ) {
     this.#tx = tx;
-    this.#driver = driver;
     this.#def = def;
     this.#segments = segments;
   }
 
   doc(id: string): TxDocumentHandle<S> {
-    return new TxDocumentHandle(this.#tx, this.#driver, this.#def, [
-      ...this.#segments,
-      id,
-    ]);
+    return new TxDocumentHandle(this.#tx, this.#def, [...this.#segments, id]);
   }
 
   get(id: string): Promise<Doc<S> | null> {
@@ -210,20 +206,15 @@ export class TxCollectionHandle<S extends StandardSchemaV1> {
 // Write-only, so it carries no def, there is no read to coerce
 export class BatchCollectionHandle<S extends StandardSchemaV1> {
   readonly #batch: BatchDriver;
-  readonly #driver: Driver;
   readonly #segments: readonly string[];
 
-  constructor(batch: BatchDriver, driver: Driver, segments: readonly string[]) {
+  constructor(batch: BatchDriver, segments: readonly string[]) {
     this.#batch = batch;
-    this.#driver = driver;
     this.#segments = segments;
   }
 
   doc(id: string): BatchDocumentHandle<S> {
-    return new BatchDocumentHandle<S>(this.#batch, this.#driver, [
-      ...this.#segments,
-      id,
-    ]);
+    return new BatchDocumentHandle<S>(this.#batch, [...this.#segments, id]);
   }
 
   // Buffer writes synchronously so a forgotten await still enqueues pre-commit
@@ -282,13 +273,15 @@ export class DocumentHandle<S extends StandardSchemaV1> {
   }
 
   async get(): Promise<Doc<S> | null> {
-    const snapshot = await this.#driver.getDoc(docLocation(this.#segments));
-    return readSnapshot(this.#def, snapshot);
+    const snapshot = await this.#driver.getDoc(this.#segments);
+
+    return snapshot && readSnapshot(this.#def, snapshot);
   }
 
   async exists(): Promise<boolean> {
-    const snapshot = await this.#driver.getDoc(docLocation(this.#segments));
-    return snapshot.exists;
+    const snapshot = await this.#driver.getDoc(this.#segments);
+
+    return snapshot !== null;
   }
 
   set(data: WithFieldValue<InferOutput<S>>): Promise<void>;
@@ -298,16 +291,16 @@ export class DocumentHandle<S extends StandardSchemaV1> {
   ): Promise<void>;
   async set(data: unknown, options?: WriteOptions): Promise<void> {
     const native = toNativeData(data, this.#driver.native);
-    await this.#driver.setDoc(docLocation(this.#segments), native, options);
+    await this.#driver.setDoc(this.#segments, native, options);
   }
 
   async update(data: UpdatePaths<InferOutput<S>>): Promise<void> {
     const native = toNativeData(data, this.#driver.native);
-    await this.#driver.updateDoc(docLocation(this.#segments), native);
+    await this.#driver.updateDoc(this.#segments, native);
   }
 
   delete(): Promise<void> {
-    return this.#driver.deleteDoc(docLocation(this.#segments));
+    return this.#driver.deleteDoc(this.#segments);
   }
 
   onSnapshot(observer: DocSnapshotObserver<S>): Unsubscribe {
@@ -317,8 +310,9 @@ export class DocumentHandle<S extends StandardSchemaV1> {
       typeof observer === "function"
         ? undefined
         : observer.error?.bind(observer);
-    return this.#driver.onSnapshotDoc(docLocation(this.#segments), {
-      next: (snapshot) => next(readSnapshot(this.#def, snapshot)),
+
+    return this.#driver.onSnapshotDoc(this.#segments, {
+      next: (snapshot) => next(snapshot && readSnapshot(this.#def, snapshot)),
       ...(onError && { error: onError }),
     });
   }
@@ -326,7 +320,7 @@ export class DocumentHandle<S extends StandardSchemaV1> {
   // Raw ref with the coercing converter attached
   get ref(): unknown {
     return this.#driver.docRef(
-      docLocation(this.#segments),
+      this.#segments,
       makeConverter(this.#def, this.#driver.native),
     );
   }
@@ -334,18 +328,15 @@ export class DocumentHandle<S extends StandardSchemaV1> {
 
 export class TxDocumentHandle<S extends StandardSchemaV1> {
   readonly #tx: TxDriver;
-  readonly #driver: Driver;
   readonly #def: CollectionDef<S>;
   readonly #segments: readonly string[];
 
   constructor(
     tx: TxDriver,
-    driver: Driver,
     def: CollectionDef<S>,
     segments: readonly string[],
   ) {
     this.#tx = tx;
-    this.#driver = driver;
     this.#def = def;
     this.#segments = segments;
   }
@@ -357,15 +348,13 @@ export class TxDocumentHandle<S extends StandardSchemaV1> {
   collection<C extends StandardSchemaV1>(
     def: CollectionDef<C>,
   ): TxCollectionHandle<C> {
-    return new TxCollectionHandle(this.#tx, this.#driver, def, [
-      ...this.#segments,
-      def.name,
-    ]);
+    return new TxCollectionHandle(this.#tx, def, [...this.#segments, def.name]);
   }
 
   async get(): Promise<Doc<S> | null> {
-    const snapshot = await this.#tx.get(docLocation(this.#segments));
-    return readSnapshot(this.#def, snapshot);
+    const snapshot = await this.#tx.get(this.#segments);
+
+    return snapshot && readSnapshot(this.#def, snapshot);
   }
 
   // Buffer writes synchronously so a forgotten await still enqueues pre-commit
@@ -375,29 +364,27 @@ export class TxDocumentHandle<S extends StandardSchemaV1> {
     options: MergeOptions<InferOutput<S>>,
   ): void;
   set(data: unknown, options?: WriteOptions): void {
-    const native = toNativeData(data, this.#driver.native);
-    this.#tx.set(docLocation(this.#segments), native, options);
+    const native = toNativeData(data, this.#tx.native);
+    this.#tx.set(this.#segments, native, options);
   }
 
   update(data: UpdatePaths<InferOutput<S>>): void {
-    const native = toNativeData(data, this.#driver.native);
-    this.#tx.update(docLocation(this.#segments), native);
+    const native = toNativeData(data, this.#tx.native);
+    this.#tx.update(this.#segments, native);
   }
 
   delete(): void {
-    this.#tx.delete(docLocation(this.#segments));
+    this.#tx.delete(this.#segments);
   }
 }
 
 // Write-only, so it carries no def, there is no read to coerce
 export class BatchDocumentHandle<S extends StandardSchemaV1> {
   readonly #batch: BatchDriver;
-  readonly #driver: Driver;
   readonly #segments: readonly string[];
 
-  constructor(batch: BatchDriver, driver: Driver, segments: readonly string[]) {
+  constructor(batch: BatchDriver, segments: readonly string[]) {
     this.#batch = batch;
-    this.#driver = driver;
     this.#segments = segments;
   }
 
@@ -408,7 +395,7 @@ export class BatchDocumentHandle<S extends StandardSchemaV1> {
   collection<C extends StandardSchemaV1>(
     def: CollectionDef<C>,
   ): BatchCollectionHandle<C> {
-    return new BatchCollectionHandle<C>(this.#batch, this.#driver, [
+    return new BatchCollectionHandle<C>(this.#batch, [
       ...this.#segments,
       def.name,
     ]);
@@ -421,16 +408,16 @@ export class BatchDocumentHandle<S extends StandardSchemaV1> {
     options: MergeOptions<InferOutput<S>>,
   ): void;
   set(data: unknown, options?: WriteOptions): void {
-    const native = toNativeData(data, this.#driver.native);
-    this.#batch.set(docLocation(this.#segments), native, options);
+    const native = toNativeData(data, this.#batch.native);
+    this.#batch.set(this.#segments, native, options);
   }
 
   update(data: UpdatePaths<InferOutput<S>>): void {
-    const native = toNativeData(data, this.#driver.native);
-    this.#batch.update(docLocation(this.#segments), native);
+    const native = toNativeData(data, this.#batch.native);
+    this.#batch.update(this.#segments, native);
   }
 
   delete(): void {
-    this.#batch.delete(docLocation(this.#segments));
+    this.#batch.delete(this.#segments);
   }
 }

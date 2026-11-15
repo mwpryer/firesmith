@@ -4,6 +4,7 @@ import {
   FieldValue as AdminFieldValue,
   type CollectionReference,
   type DocumentReference,
+  type DocumentSnapshot,
   type Firestore,
   type FirestoreDataConverter,
   type Query,
@@ -15,9 +16,7 @@ import {
 import { toNative } from "@/core/coerce";
 import type {
   BatchDriver,
-  CollectionLocation,
   Constraint,
-  DocLocation,
   DocObserver,
   DocumentData,
   Driver,
@@ -82,14 +81,15 @@ export class AdminDriver implements Driver {
     return values.map((value) => toNative(value, this.native));
   }
 
-  #setOptions(options?: WriteOptions): SetOptions | undefined {
+  #setOptions(options?: WriteOptions): SetOptions {
     if (options?.mergeFields) {
       return { mergeFields: [...options.mergeFields] };
     }
     if (options?.merge) {
       return { merge: true };
     }
-    return undefined;
+
+    return {};
   }
 
   #doc(segments: readonly string[]): DocumentReference {
@@ -113,6 +113,7 @@ export class AdminDriver implements Driver {
     for (const constraint of filtersFirst) {
       query = this.#applyConstraint(query, constraint);
     }
+
     return query;
   }
 
@@ -139,38 +140,36 @@ export class AdminDriver implements Driver {
     }
   }
 
-  async getDoc(path: DocLocation): Promise<RawSnapshot> {
-    const snapshot = await this.#doc(path.segments).get();
-
-    return {
-      id: snapshot.id,
-      path: snapshot.ref.path,
-      exists: snapshot.exists,
-      data: snapshot.data(),
-    };
+  async getDoc(segments: readonly string[]): Promise<RawSnapshot | null> {
+    return rawSnapshot(await this.#doc(segments).get());
   }
 
   async setDoc(
-    path: DocLocation,
+    segments: readonly string[],
     data: DocumentData,
     options?: WriteOptions,
   ): Promise<void> {
-    const ref = this.#doc(path.segments);
-    const setOptions = this.#setOptions(options);
-    await (setOptions ? ref.set(data, setOptions) : ref.set(data));
+    await this.#doc(segments).set(data, this.#setOptions(options));
   }
 
-  async updateDoc(path: DocLocation, data: DocumentData): Promise<void> {
-    await this.#doc(path.segments).update(data);
+  async updateDoc(
+    segments: readonly string[],
+    data: DocumentData,
+  ): Promise<void> {
+    await this.#doc(segments).update(data);
   }
 
-  async addDoc(path: CollectionLocation, data: DocumentData): Promise<string> {
-    const ref = await this.#collection(path.segments).add(data);
+  async addDoc(
+    segments: readonly string[],
+    data: DocumentData,
+  ): Promise<string> {
+    const ref = await this.#collection(segments).add(data);
+
     return ref.id;
   }
 
-  async deleteDoc(path: DocLocation): Promise<void> {
-    await this.#doc(path.segments).delete();
+  async deleteDoc(segments: readonly string[]): Promise<void> {
+    await this.#doc(segments).delete();
   }
 
   async runQuery(
@@ -178,10 +177,10 @@ export class AdminDriver implements Driver {
     constraints: readonly Constraint[],
   ): Promise<RawSnapshot[]> {
     const snapshot = await this.#query(source, constraints).get();
+
     return snapshot.docs.map((doc) => ({
       id: doc.id,
       path: doc.ref.path,
-      exists: true,
       data: doc.data(),
     }));
   }
@@ -191,6 +190,7 @@ export class AdminDriver implements Driver {
     constraints: readonly Constraint[],
   ): Promise<number> {
     const snapshot = await this.#query(source, constraints).count().get();
+
     return snapshot.data().count;
   }
 
@@ -202,6 +202,7 @@ export class AdminDriver implements Driver {
     const snapshot = await this.#query(source, constraints)
       .aggregate({ value: AggregateField.sum(field) })
       .get();
+
     return snapshot.data().value;
   }
 
@@ -213,18 +214,16 @@ export class AdminDriver implements Driver {
     const snapshot = await this.#query(source, constraints)
       .aggregate({ value: AggregateField.average(field) })
       .get();
+
     return snapshot.data().value;
   }
 
-  onSnapshotDoc(path: DocLocation, observer: DocObserver): Unsubscribe {
-    return this.#doc(path.segments).onSnapshot(
-      (snapshot) =>
-        observer.next({
-          id: snapshot.id,
-          path: snapshot.ref.path,
-          exists: snapshot.exists,
-          data: snapshot.data(),
-        }),
+  onSnapshotDoc(
+    segments: readonly string[],
+    observer: DocObserver,
+  ): Unsubscribe {
+    return this.#doc(segments).onSnapshot(
+      (snapshot) => observer.next(rawSnapshot(snapshot)),
       observer.error?.bind(observer),
     );
   }
@@ -240,7 +239,6 @@ export class AdminDriver implements Driver {
           snapshot.docs.map((doc) => ({
             id: doc.id,
             path: doc.ref.path,
-            exists: true,
             data: doc.data(),
           })),
         ),
@@ -254,53 +252,38 @@ export class AdminDriver implements Driver {
   ): Promise<T> {
     return this.#fs.runTransaction((transaction) => {
       const tx: TxDriver = {
+        native: this.native,
         ref: transaction,
-        get: async (path) => {
-          const snapshot = await transaction.get(this.#doc(path.segments));
-          return {
-            id: snapshot.id,
-            path: snapshot.ref.path,
-            exists: snapshot.exists,
-            data: snapshot.data(),
-          };
+        get: async (segments) =>
+          rawSnapshot(await transaction.get(this.#doc(segments))),
+        set: (segments, data, options) => {
+          transaction.set(this.#doc(segments), data, this.#setOptions(options));
         },
-        set: (path, data, options) => {
-          const ref = this.#doc(path.segments);
-          const setOptions = this.#setOptions(options);
-          if (setOptions) {
-            transaction.set(ref, data, setOptions);
-          } else {
-            transaction.set(ref, data);
-          }
+        update: (segments, data) => {
+          transaction.update(this.#doc(segments), data);
         },
-        update: (path, data) => {
-          transaction.update(this.#doc(path.segments), data);
-        },
-        delete: (path) => {
-          transaction.delete(this.#doc(path.segments));
+        delete: (segments) => {
+          transaction.delete(this.#doc(segments));
         },
       };
+
       return fn(tx);
     }, options);
   }
 
   batch(): BatchDriver {
     const batch = this.#fs.batch();
+
     return {
-      set: (path, data, options) => {
-        const ref = this.#doc(path.segments);
-        const setOptions = this.#setOptions(options);
-        if (setOptions) {
-          batch.set(ref, data, setOptions);
-        } else {
-          batch.set(ref, data);
-        }
+      native: this.native,
+      set: (segments, data, options) => {
+        batch.set(this.#doc(segments), data, this.#setOptions(options));
       },
-      update: (path, data) => {
-        batch.update(this.#doc(path.segments), data);
+      update: (segments, data) => {
+        batch.update(this.#doc(segments), data);
       },
-      delete: (path) => {
-        batch.delete(this.#doc(path.segments));
+      delete: (segments) => {
+        batch.delete(this.#doc(segments));
       },
       commit: async () => {
         await batch.commit();
@@ -308,14 +291,12 @@ export class AdminDriver implements Driver {
     };
   }
 
-  docRef(path: DocLocation, converter: RawConverter): unknown {
-    return this.#doc(path.segments).withConverter(adaptConverter(converter));
+  docRef(segments: readonly string[], converter: RawConverter): unknown {
+    return this.#doc(segments).withConverter(adaptConverter(converter));
   }
 
-  collectionRef(path: CollectionLocation, converter: RawConverter): unknown {
-    return this.#collection(path.segments).withConverter(
-      adaptConverter(converter),
-    );
+  collectionRef(segments: readonly string[], converter: RawConverter): unknown {
+    return this.#collection(segments).withConverter(adaptConverter(converter));
   }
 
   queryRef(
@@ -334,16 +315,28 @@ function fieldRef(field: FieldRef): string | AdminFieldPath {
   return typeof field === "string" ? field : AdminFieldPath.documentId();
 }
 
+function rawSnapshot(snapshot: DocumentSnapshot): RawSnapshot | null {
+  const data = snapshot.data();
+
+  return data === undefined
+    ? null
+    : {
+        id: snapshot.id,
+        path: snapshot.ref.path,
+        data,
+      };
+}
+
 function adaptConverter(
   converter: RawConverter,
 ): FirestoreDataConverter<DocumentData> {
   return {
     toFirestore: (model) => converter.toNative(model),
     fromFirestore: (snapshot: QueryDocumentSnapshot) =>
-      converter.fromNative(
-        snapshot.id,
-        snapshot.ref.path,
-        snapshot.data(),
-      ) as DocumentData,
+      converter.fromNative({
+        id: snapshot.id,
+        path: snapshot.ref.path,
+        data: snapshot.data(),
+      }),
   };
 }

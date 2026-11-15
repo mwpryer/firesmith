@@ -63,7 +63,10 @@ describe("admin", () => {
 
     it("reads a query inside a transaction through the raw transaction", async () => {
       const col = adminKit.db.collection(posts);
-      await col.set("p1", { title: "One", likes: 1 });
+      await col.set("p1", {
+        title: "One",
+        likes: 1,
+      });
 
       await adminKit.db.runTransaction(async (tx) => {
         const snapshot = await adminTransactionRef(tx).get(

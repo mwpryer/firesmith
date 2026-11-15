@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { z } from "zod";
+import * as z from "zod";
 
 import {
+  arrayRemove,
   arrayUnion,
   collection,
   deleteField,
@@ -37,6 +38,18 @@ for (const kit of allKits) {
         expect(john!.tags).toEqual(["tag1", "tag2"]);
       });
 
+      it("removes an element with arrayRemove in update", async () => {
+        const col = kit.db.collection(users);
+        await col.set(
+          "john",
+          sampleUser({
+            tags: ["tag1", "tag2"],
+          }),
+        );
+        await col.update("john", { tags: arrayRemove("tag1") });
+        expect((await col.get("john"))!.tags).toEqual(["tag2"]);
+      });
+
       it("merge set updates the named fields, leaving the rest intact", async () => {
         const col = kit.db.collection(users);
         await col.set("john", sampleUser());
@@ -51,7 +64,10 @@ for (const kit of allKits) {
         await col.set("john", sampleUser());
         await col.set(
           "john",
-          { age: 50, name: "Jane Doe" },
+          {
+            age: 50,
+            name: "Jane Doe",
+          },
           {
             mergeFields: ["age"],
           },
@@ -64,14 +80,23 @@ for (const kit of allKits) {
       it("clears a field with deleteField in update and in a merge set", async () => {
         const docs = collection(
           "docs",
-          z.object({ a: z.number(), b: z.number().optional() }),
+          z.object({
+            a: z.number(),
+            b: z.number().optional(),
+          }),
         );
         const col = kit.db.collection(docs);
-        await col.set("x", { a: 1, b: 2 });
+        await col.set("x", {
+          a: 1,
+          b: 2,
+        });
         await col.update("x", { b: deleteField() });
         expect((await col.get("x"))!.b).toBeUndefined();
 
-        await col.set("x", { a: 1, b: 5 });
+        await col.set("x", {
+          a: 1,
+          b: 5,
+        });
         await col.set("x", { b: deleteField() }, { merge: true });
         expect((await col.get("x"))!.b).toBeUndefined();
       });
@@ -121,12 +146,20 @@ for (const kit of allKits) {
         const records = collection(
           "records",
           z.object({
-            stats: z.object({ a: z.number(), b: z.number().optional() }),
+            stats: z.object({
+              a: z.number(),
+              b: z.number().optional(),
+            }),
           }),
         );
         const col = kit.db.collection(records);
         // Update drops b, unlike a merge set
-        await col.set("r1", { stats: { a: 1, b: 2 } });
+        await col.set("r1", {
+          stats: {
+            a: 1,
+            b: 2,
+          },
+        });
         await col.update("r1", { stats: { a: 9 } });
         expect((await col.get("r1"))!.stats).toEqual({ a: 9 });
 
@@ -152,7 +185,10 @@ for (const kit of allKits) {
 
         const p = await col.get("p1");
         expect(p!.address.city).toBe("Leeds");
-        expect(p!.address.geo).toEqual({ lat: 51, lng: 2 });
+        expect(p!.address.geo).toEqual({
+          lat: 51,
+          lng: 2,
+        });
         const stored = (await kit.rawGet("places/p1"))! as {
           stats: { lastVisit: unknown };
         };
@@ -166,7 +202,10 @@ for (const kit of allKits) {
           address: {
             city: "London",
             zip: "111",
-            geo: { lat: 1, lng: 2 },
+            geo: {
+              lat: 1,
+              lng: 2,
+            },
             note: "x",
           },
         });
@@ -201,7 +240,9 @@ for (const kit of allKits) {
               note: deleteField(),
             },
           },
-          { mergeFields: ["address.city", "address.note"] },
+          {
+            mergeFields: ["address.city", "address.note"],
+          },
         );
         expect(await col.get("p1")).toEqual({
           id: "p1",

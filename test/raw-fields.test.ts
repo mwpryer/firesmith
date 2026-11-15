@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { z } from "zod";
+import * as z from "zod";
 
 import { collection, isTimestampLike } from "@/index";
 import type { Timestamp } from "@/index";
@@ -24,7 +24,9 @@ for (const kit of allKits) {
           stats: z.object({ ts: z.custom<Timestamp>(isTimestampLike) }),
           samples: z.array(z.custom<Timestamp>(isTimestampLike)),
         }),
-        { raw: ["preciseAt", "stats.ts", "samples"] },
+        {
+          raw: ["preciseAt", "stats.ts", "samples"],
+        },
       );
 
       it("keeps listed paths raw while coercing unlisted siblings", async () => {
@@ -32,7 +34,9 @@ for (const kit of allKits) {
         await col.set("e1", {
           preciseAt: kit.timestamp(SECONDS, NANOS),
           loggedAt: new Date("2020-01-01T00:00:00.000Z"),
-          stats: { ts: kit.timestamp(SECONDS, NANOS) },
+          stats: {
+            ts: kit.timestamp(SECONDS, NANOS),
+          },
           samples: [
             kit.timestamp(SECONDS, NANOS),
             kit.timestamp(SECONDS + 1, 0),
@@ -72,7 +76,11 @@ for (const kit of allKits) {
           { raw: ["stats"] },
         );
         const col = kit.db.collection(wrap);
-        await col.set("w1", { stats: { ts: kit.timestamp(SECONDS, NANOS) } });
+        await col.set("w1", {
+          stats: {
+            ts: kit.timestamp(SECONDS, NANOS),
+          },
+        });
         const w = await col.get("w1");
         expect(kit.isSdkTimestamp(w!.stats.ts)).toBe(true);
         expect(w!.stats.ts.nanoseconds).toBe(NANOS);

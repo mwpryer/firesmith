@@ -11,16 +11,21 @@ for (const kit of allKits) {
 
       it("buffers writes and commits them together", async () => {
         const col = kit.db.collection(users);
-        await col.set("jane", sampleUser({ name: "Jane Doe", age: 36 }));
+        await col.set(
+          "jane",
+          sampleUser({
+            name: "Jane Doe",
+            age: 36,
+          }),
+        );
 
         const batch = kit.db.batch();
         batch.collection(users).set("john", sampleUser());
         batch.collection(users).update("jane", { age: increment(4) });
-        batch
-          .collection(users)
-          .doc("john")
-          .collection(posts)
-          .set("p1", { title: "Notes", likes: 3 });
+        batch.collection(users).doc("john").collection(posts).set("p1", {
+          title: "Notes",
+          likes: 3,
+        });
         // Buffered, nothing is applied before commit
         expect(await col.get("john")).toBeNull();
 

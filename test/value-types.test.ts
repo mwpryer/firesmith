@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { z } from "zod";
+import * as z from "zod";
 
 import { collection, isTimestampLike } from "@/index";
 import type { GeoPoint, Timestamp } from "@/index";
@@ -16,7 +16,9 @@ for (const kit of allKits) {
           z.object({ at: z.custom<GeoPoint>() }),
         );
         const col = kit.db.collection(spots);
-        await col.set("p", { at: kit.geoPoint(51.5, -0.12) });
+        await col.set("p", {
+          at: kit.geoPoint(51.5, -0.12),
+        });
         const got = await col.get("p");
         expect(got!.at.latitude).toBeCloseTo(51.5);
         expect(got!.at.longitude).toBeCloseTo(-0.12);
@@ -33,7 +35,9 @@ for (const kit of allKits) {
         );
         const col = kit.db.collection(events);
 
-        await col.set("e1", { at: other.timestamp(1700000000, 123456000) });
+        await col.set("e1", {
+          at: other.timestamp(1700000000, 123456000),
+        });
 
         const at = (await col.get("e1"))!.at;
         expect([at.seconds, at.nanoseconds]).toEqual([1700000000, 123456000]);
@@ -48,7 +52,9 @@ for (const kit of allKits) {
 
       it("round-trips a Uint8Array as a neutral Uint8Array", async () => {
         const col = kit.db.collection(files);
-        await col.set("f", { blob: new Uint8Array([1, 2, 3, 255]) });
+        await col.set("f", {
+          blob: new Uint8Array([1, 2, 3, 255]),
+        });
         // Stored as a real Firestore bytes value, not a map of indices
         expect(kit.isSdkBytes((await kit.rawGet("files/f"))!.blob)).toBe(true);
         // Read back as a plain Uint8Array, not the SDK bytes class or a Buffer

@@ -12,6 +12,7 @@ export function isTimestampLike(value: unknown): value is Timestamp {
     return false;
   }
   const candidate = value as Record<string, unknown>;
+
   return (
     typeof candidate.seconds === "number" &&
     typeof candidate.nanoseconds === "number" &&

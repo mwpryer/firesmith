@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as z from "zod";
 
 import type { Database } from "@/core/database";
 import { collection } from "@/index";
@@ -53,10 +53,16 @@ export const places = collection(
     address: z.object({
       city: z.string(),
       zip: z.string(),
-      geo: z.object({ lat: z.number(), lng: z.number() }),
+      geo: z.object({
+        lat: z.number(),
+        lng: z.number(),
+      }),
       note: z.string().optional(),
     }),
-    stats: z.object({ visits: z.number(), lastVisit: z.date() }),
+    stats: z.object({
+      visits: z.number(),
+      lastVisit: z.date(),
+    }),
   }),
 );
 
@@ -75,17 +81,45 @@ export function sampleUser(
 export function samplePlace() {
   return {
     name: "Acme",
-    address: { city: "London", zip: "111", geo: { lat: 1, lng: 2 } },
-    stats: { visits: 0, lastVisit: new Date("2020-01-01T00:00:00.000Z") },
+    address: {
+      city: "London",
+      zip: "111",
+      geo: {
+        lat: 1,
+        lng: 2,
+      },
+    },
+    stats: {
+      visits: 0,
+      lastVisit: new Date("2020-01-01T00:00:00.000Z"),
+    },
   };
 }
 
 // Seed users a, b, c aged 20, 30, 40 for the query and cursor suites
 export async function seedUsers(kit: DriverKit): Promise<void> {
   const col = kit.db.collection(users);
-  await col.set("a", sampleUser({ name: "A", age: 20 }));
-  await col.set("b", sampleUser({ name: "B", age: 30 }));
-  await col.set("c", sampleUser({ name: "C", age: 40 }));
+  await col.set(
+    "a",
+    sampleUser({
+      name: "A",
+      age: 20,
+    }),
+  );
+  await col.set(
+    "b",
+    sampleUser({
+      name: "B",
+      age: 30,
+    }),
+  );
+  await col.set(
+    "c",
+    sampleUser({
+      name: "C",
+      age: 40,
+    }),
+  );
 }
 
 // Let an awaited write settle and any spurious listener delivery arrive

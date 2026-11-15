@@ -13,7 +13,10 @@ for (const kit of allKits) {
         const col = kit.db.collection(users);
         await col.set("john", sampleUser());
         const johnPosts = col.doc("john").collection(posts);
-        await johnPosts.set("p1", { title: "A", likes: 1 });
+        await johnPosts.set("p1", {
+          title: "A",
+          likes: 1,
+        });
         expect(await johnPosts.get("p1")).toEqual({
           id: "p1",
           meta: { path: "users/john/posts/p1" },
@@ -26,14 +29,14 @@ for (const kit of allKits) {
         const col = kit.db.collection(users);
         await col.set("john", sampleUser());
         await col.set("jane", sampleUser({ name: "Jane Doe" }));
-        await col
-          .doc("john")
-          .collection(posts)
-          .set("p1", { title: "A", likes: 1 });
-        await col
-          .doc("jane")
-          .collection(posts)
-          .set("p2", { title: "B", likes: 5 });
+        await col.doc("john").collection(posts).set("p1", {
+          title: "A",
+          likes: 1,
+        });
+        await col.doc("jane").collection(posts).set("p2", {
+          title: "B",
+          likes: 5,
+        });
 
         const popular = await kit.db
           .collectionGroup(posts)

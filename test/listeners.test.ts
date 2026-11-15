@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 
+import { serverTimestamp } from "@/index";
 import { allKits } from "./emulator";
 import { sampleUser, settle, users, waitUntil } from "./support";
 
@@ -99,6 +100,23 @@ for (const kit of allKits) {
         await waitUntil(() => seen.length >= 1);
         unsub();
         expect(seen[0]).toBe("John Doe");
+      });
+
+      it("emits a pending serverTimestamp as a Date", async () => {
+        const col = kit.db.collection(users);
+        await col.set("john", sampleUser());
+        const seen: Date[] = [];
+        const unsub = col
+          .doc("john")
+          .onSnapshot((doc) => seen.push(doc!.createdAt));
+        await waitUntil(() => seen.length >= 1);
+        await col.update("john", { createdAt: serverTimestamp() });
+        await settle();
+        unsub();
+        expect(seen.length).toBeGreaterThan(1);
+        for (const createdAt of seen) {
+          expect(createdAt).toBeInstanceOf(Date);
+        }
       });
     });
   });

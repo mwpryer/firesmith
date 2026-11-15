@@ -1,6 +1,6 @@
 import type { Firestore as AdminFirestore } from "firebase-admin/firestore";
 import { setDoc } from "firebase/firestore";
-import { z } from "zod";
+import * as z from "zod";
 
 import { docRef as adminDocRef, queryRef as adminQueryRef } from "@/admin";
 import type { Database } from "@/core/database";

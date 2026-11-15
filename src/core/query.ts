@@ -6,7 +6,6 @@ import type {
   Driver,
   FieldRef,
   QuerySource,
-  RawSnapshot,
   Unsubscribe,
 } from "@/core/driver";
 import type { DocumentIdRef } from "@/core/firestore";
@@ -152,7 +151,12 @@ export class QueryBuilder<
     op: WhereFilterOp,
     value: unknown,
   ): QueryBuilder<S, O> {
-    return this.#append({ type: "where", field, op, value });
+    return this.#append({
+      type: "where",
+      field,
+      op,
+      value,
+    });
   }
 
   orderBy<F extends OrderField<S>>(
@@ -161,44 +165,75 @@ export class QueryBuilder<
   ): QueryBuilder<S, [...O, F]> {
     return new QueryBuilder<S, [...O, F]>(this.#ctx, [
       ...this.#constraints,
-      { type: "orderBy", field, direction },
+      {
+        type: "orderBy",
+        field,
+        direction,
+      },
     ]);
   }
 
   limit(limit: number): QueryBuilder<S, O> {
-    return this.#append({ type: "limit", limit });
+    return this.#append({
+      type: "limit",
+      limit,
+    });
   }
 
   startAt(...values: CursorValues<S, O>): QueryBuilder<S, O> {
-    return this.#append({ type: "startAt", values });
+    return this.#append({
+      type: "startAt",
+      values,
+    });
   }
 
   startAfter(...values: CursorValues<S, O>): QueryBuilder<S, O> {
-    return this.#append({ type: "startAfter", values });
+    return this.#append({
+      type: "startAfter",
+      values,
+    });
   }
 
   endAt(...values: CursorValues<S, O>): QueryBuilder<S, O> {
-    return this.#append({ type: "endAt", values });
+    return this.#append({
+      type: "endAt",
+      values,
+    });
   }
 
   endBefore(...values: CursorValues<S, O>): QueryBuilder<S, O> {
-    return this.#append({ type: "endBefore", values });
+    return this.#append({
+      type: "endBefore",
+      values,
+    });
   }
 
   startAtDoc(doc: DocCursor<S, O>): QueryBuilder<S, O> {
-    return this.#append({ type: "startAt", values: this.#docValues(doc) });
+    return this.#append({
+      type: "startAt",
+      values: this.#docValues(doc),
+    });
   }
 
   startAfterDoc(doc: DocCursor<S, O>): QueryBuilder<S, O> {
-    return this.#append({ type: "startAfter", values: this.#docValues(doc) });
+    return this.#append({
+      type: "startAfter",
+      values: this.#docValues(doc),
+    });
   }
 
   endAtDoc(doc: DocCursor<S, O>): QueryBuilder<S, O> {
-    return this.#append({ type: "endAt", values: this.#docValues(doc) });
+    return this.#append({
+      type: "endAt",
+      values: this.#docValues(doc),
+    });
   }
 
   endBeforeDoc(doc: DocCursor<S, O>): QueryBuilder<S, O> {
-    return this.#append({ type: "endBefore", values: this.#docValues(doc) });
+    return this.#append({
+      type: "endBefore",
+      values: this.#docValues(doc),
+    });
   }
 
   async get(): Promise<Array<Doc<S>>> {
@@ -206,7 +241,8 @@ export class QueryBuilder<
       this.#ctx.source,
       this.#constraints,
     );
-    return this.#toDocs(snapshots);
+
+    return snapshots.map((snapshot) => readSnapshot(this.#ctx.def, snapshot));
   }
 
   list(): Promise<Array<Doc<S>>> {
@@ -232,25 +268,18 @@ export class QueryBuilder<
       typeof observer === "function"
         ? undefined
         : observer.error?.bind(observer);
+
     return this.#ctx.driver.onSnapshotQuery(
       this.#ctx.source,
       this.#constraints,
       {
-        next: (snapshots) => next(this.#toDocs(snapshots)),
+        next: (snapshots) =>
+          next(
+            snapshots.map((snapshot) => readSnapshot(this.#ctx.def, snapshot)),
+          ),
         ...(onError && { error: onError }),
       },
     );
-  }
-
-  #toDocs(snapshots: readonly RawSnapshot[]): Array<Doc<S>> {
-    const docs: Array<Doc<S>> = [];
-    for (const snapshot of snapshots) {
-      const result = readSnapshot(this.#ctx.def, snapshot);
-      if (result !== null) {
-        docs.push(result);
-      }
-    }
-    return docs;
   }
 
   // Raw query with the coercing converter attached

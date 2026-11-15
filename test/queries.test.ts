@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { z } from "zod";
+import * as z from "zod";
 
 import { collection, documentId } from "@/index";
 import { allKits } from "./emulator";
@@ -41,7 +41,13 @@ for (const kit of allKits) {
 
       it("filters with array-contains", async () => {
         const col = kit.db.collection(users);
-        await col.set("d", sampleUser({ name: "D", tags: ["tag2"] }));
+        await col.set(
+          "d",
+          sampleUser({
+            name: "D",
+            tags: ["tag2"],
+          }),
+        );
         const docs = await col.where("tags", "array-contains", "tag2").get();
         expect(docs.map((u) => u.name)).toEqual(["D"]);
       });
@@ -87,7 +93,13 @@ for (const kit of allKits) {
       it("breaks orderBy ties by document id in the sort direction", async () => {
         const col = kit.db.collection(users);
         // c and d both have age 40, so the id tiebreak decides their relative order
-        await col.set("d", sampleUser({ name: "D", age: 40 }));
+        await col.set(
+          "d",
+          sampleUser({
+            name: "D",
+            age: 40,
+          }),
+        );
         const asc = await col.orderBy("age").get();
         expect(asc.map((u) => u.id)).toEqual(["a", "b", "c", "d"]);
         const desc = await col.orderBy("age", "desc").get();
@@ -97,12 +109,21 @@ for (const kit of allKits) {
       it("excludes documents missing the field from a != query", async () => {
         const items = collection(
           "items",
-          z.object({ label: z.string(), score: z.number().optional() }),
+          z.object({
+            label: z.string(),
+            score: z.number().optional(),
+          }),
         );
         const col = kit.db.collection(items);
-        await col.set("withScore", { label: "x", score: 5 });
+        await col.set("withScore", {
+          label: "x",
+          score: 5,
+        });
         await col.set("noScore", { label: "y" });
-        await col.set("other", { label: "z", score: 9 });
+        await col.set("other", {
+          label: "z",
+          score: 9,
+        });
         // withScore is equal, noScore is missing the field, so only other remains
         const docs = await col.where("score", "!=", 5).get();
         expect(docs.map((i) => i.id)).toEqual(["other"]);

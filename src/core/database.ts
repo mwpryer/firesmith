@@ -16,11 +16,9 @@ import type { CollectionDef } from "@/core/types";
 
 export class Transaction {
   readonly #tx: TxDriver;
-  readonly #driver: Driver;
 
-  constructor(tx: TxDriver, driver: Driver) {
+  constructor(tx: TxDriver) {
     this.#tx = tx;
-    this.#driver = driver;
   }
 
   // Raw SDK transaction
@@ -31,23 +29,21 @@ export class Transaction {
   collection<S extends StandardSchemaV1>(
     def: CollectionDef<S>,
   ): TxCollectionHandle<S> {
-    return new TxCollectionHandle(this.#tx, this.#driver, def, [def.name]);
+    return new TxCollectionHandle(this.#tx, def, [def.name]);
   }
 }
 
 export class Batch {
   readonly #batch: BatchDriver;
-  readonly #driver: Driver;
 
-  constructor(batch: BatchDriver, driver: Driver) {
+  constructor(batch: BatchDriver) {
     this.#batch = batch;
-    this.#driver = driver;
   }
 
   collection<S extends StandardSchemaV1>(
     def: CollectionDef<S>,
   ): BatchCollectionHandle<S> {
-    return new BatchCollectionHandle<S>(this.#batch, this.#driver, [def.name]);
+    return new BatchCollectionHandle<S>(this.#batch, [def.name]);
   }
 
   commit(): Promise<void> {
@@ -75,7 +71,10 @@ export class Database {
     return new QueryBuilder({
       driver: this.#driver,
       def,
-      source: { kind: "collectionGroup", collectionId: def.name },
+      source: {
+        kind: "collectionGroup",
+        collectionId: def.name,
+      },
     });
   }
 
@@ -84,12 +83,12 @@ export class Database {
     options?: TransactionOptions,
   ): Promise<T> {
     return this.#driver.runTransaction(
-      (tx) => fn(new Transaction(tx, this.#driver)),
+      (tx) => fn(new Transaction(tx)),
       options,
     );
   }
 
   batch(): Batch {
-    return new Batch(this.#driver.batch(), this.#driver);
+    return new Batch(this.#driver.batch());
   }
 }

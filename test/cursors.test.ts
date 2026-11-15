@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { z } from "zod";
+import * as z from "zod";
 
 import { collection, documentId, isTimestampLike } from "@/index";
 import type { Timestamp } from "@/index";
@@ -102,12 +102,12 @@ for (const kit of allKits) {
           z.object({ at: z.custom<Timestamp>(isTimestampLike) }),
         );
         const events = collection("events", z.object({ at: z.date() }));
-        await kit.db
-          .collection(stored)
-          .set("a", { at: kit.timestamp(1700000000, 123456000) });
-        await kit.db
-          .collection(stored)
-          .set("b", { at: kit.timestamp(1700000000, 123456000) });
+        await kit.db.collection(stored).set("a", {
+          at: kit.timestamp(1700000000, 123456000),
+        });
+        await kit.db.collection(stored).set("b", {
+          at: kit.timestamp(1700000000, 123456000),
+        });
         const byAt = kit.db
           .collection(events)
           .orderBy("at")

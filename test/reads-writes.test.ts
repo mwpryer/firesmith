@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { getDocs, query, where } from "firebase/firestore";
-import { z } from "zod";
+import { setDoc as webSetDoc } from "firebase/firestore";
+import * as z from "zod";
 
-import { collectionRef as adminCollectionRef } from "@/admin";
+import { docRef as adminDocRef } from "@/admin";
 import { collection, isTimestampLike } from "@/index";
 import type { Timestamp } from "@/index";
-import { collectionRef as webCollectionRef } from "@/web";
+import { docRef as webDocRef } from "@/web";
 import { allKits } from "./emulator";
 import { sampleUser, users } from "./support";
 
@@ -21,6 +21,24 @@ for (const kit of allKits) {
         expect(john!.id).toBe("john");
         expect(john!.meta).toEqual({ path: "users/john" });
         expect(john!.name).toBe("John Doe");
+      });
+
+      it("reads id and meta from the location over stored fields", async () => {
+        const col = kit.db.collection(users);
+        const fields = {
+          ...sampleUser(),
+          id: "wrong",
+          meta: { path: "wrong/path" },
+        };
+        // Converter strips id and meta, write without it to store them
+        await (kit.name === "admin"
+          ? adminDocRef(col.doc("john")).withConverter(null).set(fields)
+          : webSetDoc(webDocRef(col.doc("john")).withConverter(null), fields));
+
+        const john = await col.get("john");
+
+        expect(john!.id).toBe("john");
+        expect(john!.meta).toEqual({ path: "users/john" });
       });
 
       it("strips id and meta from writes but stores a path data field", async () => {
@@ -61,27 +79,6 @@ for (const kit of allKits) {
         batchCol.update("batch-update", source);
         await batch.commit();
 
-        const matches =
-          kit.name === "admin"
-            ? await adminCollectionRef(col).where("id", "==", "one").get()
-            : await getDocs(
-                query(webCollectionRef(col), where("id", "==", "one")),
-              );
-        expect(matches.docs.map((doc) => doc.id)).toEqual([]);
-
-        const metaMatches =
-          kit.name === "admin"
-            ? await adminCollectionRef(col)
-                .where("meta.path", "==", "records/one")
-                .get()
-            : await getDocs(
-                query(
-                  webCollectionRef(col),
-                  where("meta.path", "==", "records/one"),
-                ),
-              );
-        expect(metaMatches.docs.map((doc) => doc.id)).toEqual([]);
-
         const copies = await col.query().get();
         expect(copies).toHaveLength(10);
         for (const copy of copies) {
@@ -89,6 +86,9 @@ for (const kit of allKits) {
             name: "Original",
             path: "data/path",
           });
+          const stored = (await kit.rawGet(copy.meta.path))!;
+          expect("id" in stored).toBe(false);
+          expect("meta" in stored).toBe(false);
         }
         expect(source).toEqual({
           id: "one",
@@ -101,23 +101,40 @@ for (const kit of allKits) {
       it("coerces dates at any depth, Date on read, timestamp in storage", async () => {
         const events = collection(
           "events",
-          z.object({ at: z.date(), stats: z.object({ start: z.date() }) }),
+          z.object({
+            at: z.date(),
+            stats: z.object({ start: z.date() }),
+            days: z.array(z.date()),
+            slots: z.array(z.object({ start: z.date() })),
+          }),
         );
         const col = kit.db.collection(events);
         const date = new Date("2020-01-01T00:00:00.000Z");
-        await col.set("e1", { at: date, stats: { start: date } });
+        await col.set("e1", {
+          at: date,
+          stats: { start: date },
+          days: [date],
+          slots: [{ start: date }],
+        });
 
         const e = await col.get("e1");
         expect(e!.at).toBeInstanceOf(Date);
         expect(e!.at.getTime()).toBe(date.getTime());
         expect(e!.stats.start).toBeInstanceOf(Date);
+        expect(e!.days[0]).toBeInstanceOf(Date);
+        expect(e!.days[0]!.getTime()).toBe(date.getTime());
+        expect(e!.slots[0]!.start).toBeInstanceOf(Date);
 
         const stored = (await kit.rawGet("events/e1"))! as {
           at: unknown;
           stats: { start: unknown };
+          days: unknown[];
+          slots: Array<{ start: unknown }>;
         };
         expect(isTimestampLike(stored.at)).toBe(true);
         expect(isTimestampLike(stored.stats.start)).toBe(true);
+        expect(isTimestampLike(stored.days[0])).toBe(true);
+        expect(isTimestampLike(stored.slots[0]!.start)).toBe(true);
       });
 
       it("writes back a read date at its stored precision", async () => {
@@ -128,9 +145,9 @@ for (const kit of allKits) {
           { raw: ["at"] },
         );
         const events = collection("events", z.object({ at: z.date() }));
-        await kit.db
-          .collection(precise)
-          .set("e1", { at: kit.timestamp(1700000000, 123456000) });
+        await kit.db.collection(precise).set("e1", {
+          at: kit.timestamp(1700000000, 123456000),
+        });
         const read = await kit.db.collection(events).get("e1");
 
         await kit.db.collection(events).set("e1", { at: read!.at });
@@ -146,9 +163,9 @@ for (const kit of allKits) {
           { raw: ["at"] },
         );
         const events = collection("events", z.object({ at: z.date() }));
-        await kit.db
-          .collection(precise)
-          .set("e1", { at: kit.timestamp(1700000000, 123456000) });
+        await kit.db.collection(precise).set("e1", {
+          at: kit.timestamp(1700000000, 123456000),
+        });
         const read = await kit.db.collection(events).get("e1");
         read!.at.setTime(1700000060000);
 

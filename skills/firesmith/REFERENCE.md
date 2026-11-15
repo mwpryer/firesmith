@@ -4,7 +4,7 @@ Full usage reference for the `firesmith` surface. All snippets assume a `db` fro
 
 ```ts
 import { collection } from "firesmith";
-import { z } from "zod";
+import * as z from "zod";
 
 const posts = collection(
   "posts",
@@ -249,7 +249,7 @@ const events = collection(
 
 ## Bytes
 
-Schemas speak `Uint8Array`; coerced to web `Bytes` / admin `Buffer` on write and back on read. Lossless.
+Schemas speak `Uint8Array`; coerced to web `Bytes` on write (admin takes it as-is) and back to a plain `Uint8Array` on read. Lossless.
 
 ```ts
 const files = collection("files", z.object({ blob: z.custom<Uint8Array>() }));
@@ -267,7 +267,7 @@ const places = collection("places", z.object({ at: z.custom<GeoPoint>() }));
 
 ## Escape hatch: `.ref`
 
-Every collection, document, and query handle exposes `.ref`, the raw SDK ref with the coercing converter attached, so unwrapped SDK calls still coerce where the SDK invokes the converter. `.ref` is typed `unknown`; use the entrypoint's typed helpers instead of casting. They type the ref to the schema's fields, no `id` or `meta`:
+Every collection, document, and query handle exposes `.ref`, the raw SDK ref with the coercing converter attached, so unwrapped SDK calls still coerce where the SDK invokes the converter. `.ref` is typed `unknown`; use the entrypoint's typed helpers instead of casting. They type the ref to the schema's fields. The type leaves out `id` and `meta`, but a read through the converter still adds both at runtime:
 
 ```ts
 import { docRef, collectionRef, queryRef } from "firesmith/admin";
@@ -276,7 +276,7 @@ import { docRef, collectionRef, queryRef } from "firesmith/admin";
 const ref = docRef(db.collection(posts).doc("hello"));
 await ref.set({ title: "Hello", likes: 0, tags: [], createdAt: new Date() });
 const unsub = ref.onSnapshot((snap) => {
-  // still coerced, InferOutput<S> | undefined, snap.id is the id
+  // still coerced, InferOutput<S> | undefined, plus untyped id and meta
   const post = snap.data();
 });
 ```

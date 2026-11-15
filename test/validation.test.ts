@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { z } from "zod";
+import * as z from "zod";
 
 import { collection, deleteField, serverTimestamp } from "@/index";
 import { allKits } from "./emulator";
@@ -48,7 +48,10 @@ for (const kit of allKits) {
 
         const items = collection(
           "items",
-          z.object({ label: z.string(), score: z.number().optional() }),
+          z.object({
+            label: z.string(),
+            score: z.number().optional(),
+          }),
         );
         await expect(
           kit.db
